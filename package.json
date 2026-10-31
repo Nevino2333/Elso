@@ -1,0 +1,19 @@
+{
+  "name": "elso",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Elso - AI-only random planet society sandbox",
+  "scripts": {
+    "sim": "pnpm --filter @elso/sim run start",
+    "sim:mock": "pnpm --filter @elso/sim run start:mock",
+    "web:dev": "pnpm --filter @elso/web run dev",
+    "web:build": "pnpm --filter @elso/web run build",
+    "typecheck": "pnpm --filter @elso/sim run typecheck && pnpm --filter @elso/web run typecheck",
+    "test": "pnpm --filter @elso/sim run test",
+    "compare": "pnpm --filter @elso/sim run compare"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT"
+}

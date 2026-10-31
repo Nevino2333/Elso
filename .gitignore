@@ -1,0 +1,10 @@
+node_modules/
+dist/
+logs/*.jsonl
+!logs/sample.jsonl
+.env
+.env.local
+*.log
+.agent-context/
+.DS_Store
+Thumbs.db

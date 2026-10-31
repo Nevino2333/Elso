@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@elso/shared": ["../../packages/shared/src/index.ts"]
+    }
+  },
+  "include": ["src", "tests"]
+}
