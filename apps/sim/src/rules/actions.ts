@@ -1,11 +1,10 @@
-import type { World, AgentState, Action, ResourceKind } from "@elso/shared";
+import type { World, AgentState, Action, ResourceKind, MemoryEntry } from "@elso/shared";
 
 export interface ActionResult {
   ok: boolean;
   message: string;
 }
 
-/** Manhattan distance between two agents (used to gate give/trade). */
 function manhattan(a: AgentState, b: AgentState): number {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
@@ -67,6 +66,40 @@ export function executeAction(
       agent.inventory[kind] -= amt;
       target.inventory[kind] += amt;
       return { ok: true, message: `gave ${amt.toFixed(2)} ${kind} to ${target.id}` };
+    }
+    case "talk": {
+      const toId = action.payload?.to as string;
+      const text = (action.payload?.text as string) ?? "";
+      const target = agents.find((a) => a.id === toId);
+      if (!target) return { ok: false, message: "no target" };
+      if (target === agent) return { ok: false, message: "talk to self" };
+      if (manhattan(agent, target) > 2) return { ok: false, message: "too far" };
+      // Affinity grows with conversation.
+      const cur = agent.relationships[toId] ?? 0;
+      agent.relationships[toId] = Math.max(-1, Math.min(1, cur + 0.05));
+      if (target.relationships[agent.id] === undefined) target.relationships[agent.id] = 0;
+      target.relationships[agent.id] = Math.max(-1, Math.min(1, target.relationships[agent.id] + 0.03));
+      return { ok: true, message: `talked to ${target.id}: ${text}` };
+    }
+    case "craft": {
+      const recipe = action.payload?.recipe as string;
+      if (recipe === "tool") {
+        if (agent.inventory.wood < 1 || agent.inventory.stone < 1) {
+          return { ok: false, message: "missing materials" };
+        }
+        agent.inventory.wood -= 1;
+        agent.inventory.stone -= 1;
+        agent.energy = Math.min(100, agent.energy + 8);
+        return { ok: true, message: "crafted tool" };
+      }
+      if (recipe === "meal") {
+        if (agent.inventory.food < 2) return { ok: false, message: "not enough food" };
+        agent.inventory.food -= 2;
+        agent.hunger = Math.max(0, agent.hunger - 15);
+        agent.energy = Math.min(100, agent.energy + 5);
+        return { ok: true, message: "crafted meal" };
+      }
+      return { ok: false, message: "unknown recipe" };
     }
     case "speak": {
       return { ok: true, message: `said: ${action.payload?.text ?? ""}` };

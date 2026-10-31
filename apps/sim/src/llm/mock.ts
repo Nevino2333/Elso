@@ -20,13 +20,17 @@ const SPEECH = [
   "I saw water to the east.",
   "This soil is rich.",
   "We survive together.",
+  "Let us build a shelter.",
+  "Trade keeps us alive.",
 ];
 
-const INVENTORY: (keyof import("@elso/shared").Inventory)[] = [
-  "food",
-  "wood",
-  "stone",
-  "ore",
+const TALK_TOPICS = [
+  "food stores",
+  "the weather",
+  "moving camp",
+  "sharing tools",
+  "the forest edge",
+  "night watch",
 ];
 
 function cellAt(world: World, x: number, y: number): Cell | undefined {
@@ -43,10 +47,10 @@ function isWalkable(cell: Cell | undefined): cell is Cell {
  *  1. starving  -> eat if food, else hunt toward nearby food, else rest
  *  2. exhausted -> rest (eat first if hungry and fed)
  *  3. stocked   -> gather the cell's resource if below 4 units
- *  4. generous  -> give food to a hungrier neighbor within reach
- *  5. otherwise -> explore toward a promising resource, or chat
- * Every choice is a pure function of (world, agents, rng state); same seed
- * therefore produces byte-identical logs.
+ *  4. craft     -> turn wood+stone into a tool when materials allow
+ *  5. social    -> talk to a nearby agent to build affinity / share info
+ *  6. generous  -> give food to a hungrier neighbor within reach
+ *  7. otherwise -> explore toward a promising resource, or chat
  */
 export class MockProvider implements LLMProvider {
   private rng: () => number;
@@ -94,30 +98,47 @@ export class MockProvider implements LLMProvider {
       return { type: "gather" };
     }
 
-    // 5. Share food with a hungrier neighbor within reach.
-    const neighbor = this.hungriestNeighbor(agent, agents);
-    if (neighbor && agent.inventory.food >= 3 && this.rng() < 0.4) {
+    // 5. Craft when materials allow (social/progression layer).
+    if (agent.inventory.wood >= 1 && agent.inventory.stone >= 1 && this.rng() < 0.25) {
+      return { type: "craft", payload: { recipe: "tool" } };
+    }
+    if (agent.inventory.food >= 2 && agent.hunger < 40 && this.rng() < 0.15) {
+      return { type: "craft", payload: { recipe: "meal" } };
+    }
+
+    // 6. Social: talk to a nearby agent to build affinity.
+    const neighbor = this.socialNeighbor(agent, agents);
+    if (neighbor && this.rng() < 0.3) {
+      const topic = TALK_TOPICS[Math.floor(this.rng() * TALK_TOPICS.length)];
       return {
-        type: "give",
-        payload: { to: neighbor.id, kind: "food", amount: 1 },
+        type: "talk",
+        payload: { to: neighbor.id, text: `let's discuss ${topic}` },
       };
     }
 
-    // 6. Explore: head for the best nearby unharvested resource.
+    // 7. Share food with a hungrier neighbor within reach.
+    const hungry = this.hungriestNeighbor(agent, agents);
+    if (hungry && agent.inventory.food >= 3 && this.rng() < 0.4) {
+      return {
+        type: "give",
+        payload: { to: hungry.id, kind: "food", amount: 1 },
+      };
+    }
+
+    // 8. Explore: head for the best nearby unharvested resource.
     const r = this.rng();
-    if (r < 0.7) {
+    if (r < 0.6) {
       const target = this.findBestCell(world, agent);
       if (target) return this.moveToward(agent, target, world);
       return this.wander(agent, world);
     }
-    if (r < 0.85) {
+    if (r < 0.78) {
       const text = SPEECH[Math.floor(this.rng() * SPEECH.length)];
       return { type: "speak", payload: { text } };
     }
     return { type: "rest" };
   }
 
-  /** Nearest cell within radius 4 that offers food. */
   private findFood(
     world: World,
     agent: AgentState
@@ -136,7 +157,6 @@ export class MockProvider implements LLMProvider {
     return null;
   }
 
-  /** Highest-scoring reachable cell within radius 3 (resources > novelty). */
   private findBestCell(
     world: World,
     agent: AgentState
@@ -149,7 +169,7 @@ export class MockProvider implements LLMProvider {
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
           const cell = cellAt(world, agent.x + dx, agent.y + dy);
           if (!cell || !isWalkable(cell)) continue;
-          let score = 1; // novelty floor
+          let score = 1;
           if (cell.resourceKind && cell.resource > 0.3) score += 4;
           else if (cell.resourceKind && cell.resource > 0.08) score += 2;
           if (score > bestScore) {
@@ -162,7 +182,6 @@ export class MockProvider implements LLMProvider {
     return best;
   }
 
-  /** Step along the sign toward (tx,ty); prefer diagonal-free orthogonal. */
   private moveToward(
     agent: AgentState,
     target: { x: number; y: number },
@@ -182,7 +201,6 @@ export class MockProvider implements LLMProvider {
     return this.wander(agent, world);
   }
 
-  /** Random walkable neighbor, else stay put. */
   private wander(agent: AgentState, world: World): Action {
     for (let i = 0; i < 4; i++) {
       const d = DIRECTIONS[Math.floor(this.rng() * DIRECTIONS.length)];
@@ -193,7 +211,21 @@ export class MockProvider implements LLMProvider {
     return { type: "rest" };
   }
 
-  /** Hungriest agent within Manhattan distance 1 of us (deterministic tie-break). */
+  /** Agent within reach whose affinity is low (good candidate to befriend). */
+  private socialNeighbor(agent: AgentState, agents: AgentState[]) {
+    let best: AgentState | null = null;
+    for (const other of agents) {
+      if (other === agent || other.energy <= 0) continue;
+      const dist = Math.abs(other.x - agent.x) + Math.abs(other.y - agent.y);
+      if (dist > 2) continue;
+      const aff = agent.relationships[other.id] ?? 0;
+      if (aff < 0.4 && (!best || aff < (agent.relationships[best.id] ?? 0))) {
+        best = other;
+      }
+    }
+    return best;
+  }
+
   private hungriestNeighbor(agent: AgentState, agents: AgentState[]) {
     let best: AgentState | null = null;
     for (const other of agents) {

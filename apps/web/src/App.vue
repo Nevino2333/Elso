@@ -131,7 +131,9 @@
           </div>
           <div class="mem" v-if="selectedAgent.memory?.length">
             <div class="memtitle">recent memory</div>
-            <div v-for="(m, i) in selectedAgent.memory.slice(-6)" :key="i" class="memline">{{ m }}</div>
+            <div v-for="(m, i) in selectedAgent.memory.slice(-6)" :key="i" class="memline">
+            <span class="memkind">{{ m.kind }}</span> {{ m.text }}
+          </div>
           </div>
           <button class="clearsel" @click="selected = null">clear selection</button>
         </div>
@@ -248,6 +250,8 @@ const feed = computed(() => {
   for (const a of current.value.actions) {
     if (a.action.type === "speak") {
       out.push({ who: a.agentId, text: `“${a.action.payload?.text ?? ""}”` });
+    } else if (a.action.type === "talk" && a.result?.startsWith("talked")) {
+      out.push({ who: a.agentId, text: `→ ${a.action.payload?.to}: ${a.action.payload?.text ?? ""}` });
     } else if (a.action.type === "give" && a.result?.startsWith("gave")) {
       out.push({ who: a.agentId, text: a.result });
     }

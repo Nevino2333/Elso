@@ -18,6 +18,15 @@ export type Biome =
 
 export type ResourceKind = "food" | "wood" | "stone" | "ore";
 
+export type MemoryKind = "event" | "plan" | "social" | "observation";
+
+export interface MemoryEntry {
+  tick: number;
+  kind: MemoryKind;
+  text: string;
+  importance: number; // 0..1
+}
+
 export interface Inventory {
   food: number;
   wood: number;
@@ -52,10 +61,22 @@ export interface AgentState {
   energy: number; // 0..100
   hunger: number; // 0..100
   inventory: Inventory;
-  memory: string[]; // last N events
+  memory: MemoryEntry[]; // rolling memory stream (most recent last)
+  /** Affinity toward other agents, -1..1. */
+  relationships: Record<string, number>;
+  /** Short-term plan queue (human-readable steps). */
+  plan: string[];
 }
 
-export type ActionType = "move" | "gather" | "eat" | "rest" | "speak" | "give";
+export type ActionType =
+  | "move"
+  | "gather"
+  | "eat"
+  | "rest"
+  | "speak"
+  | "give"
+  | "talk"
+  | "craft";
 
 export interface Action {
   type: ActionType;
@@ -72,7 +93,7 @@ export interface TickLog {
   metrics: {
     alive: number;
     gathered: number; // total resource units collected (all kinds)
-    communications: number; // speak actions
+    communications: number; // speak/talk actions
     events: number; // successful actions
     traded: number; // units transferred via give
   };

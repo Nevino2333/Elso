@@ -59,7 +59,7 @@ function buildSituation(
     `inventory: ${inv}`,
     visible.length ? `nearby resources: ${visible.join("; ")}` : "nearby resources: none",
     nearby.length ? `other agents visible: ${nearby.join("; ")}` : "other agents visible: none",
-    `memory (recent): ${agent.memory.slice(-MAX_MEMORY).join(" | ") || "empty"}`,
+    `memory (recent): ${agent.memory.slice(-MAX_MEMORY).map((m) => `[${m.kind}] ${m.text}`).join(" | ") || "empty"}`,
   ].join("\n");
 }
 
@@ -93,10 +93,12 @@ Choose exactly one action, JSON only, no prose:
 - {"type":"gather"} — harvest the resource standing in your cell (food/wood/stone/ore), does not work on empty cells
 - {"type":"eat"} — consumes 1 food from inventory, -30 hunger
 - {"type":"rest"} — recover energy, costs nothing
+- {"type":"talk","payload":{"to":"<agent id>","text":"<short line>"}} — direct dialogue with a nearby agent; builds affinity
+- {"type":"craft","payload":{"recipe":"tool"|"meal"}} — tool: 1 wood + 1 stone -> +15 energy; meal: 2 food -> -10 hunger +5 energy
 - {"type":"give","payload":{"to":"<agent id>","kind":"food","amount":1}} — only if that agent is within 2 cells and you have surplus
 - {"type":"speak","payload":{"text":"<short message>"}}
 
-Eat only if hunger is high; gather food whenever standing on food; move toward food if you are hungry and have none. Never be idle when you can act.`;
+Eat only if hunger is high; gather food whenever standing on food; move toward food if you are hungry and have none. Talk to nearby agents to build relationships; share food with hungry neighbors. Never be idle when you can act.`;
 
     const res = await fetch(`${this.baseUrl}/chat/completions`, {
       method: "POST",

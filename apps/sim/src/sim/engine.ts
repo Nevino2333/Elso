@@ -61,7 +61,7 @@ export async function runSimulation(
         traded += (action.payload?.amount as number) ?? 0;
       }
       if (res.ok) events++;
-      addMemory(agent, `t${tick}: ${action.type} ${res.message}`);
+      addMemory(agent, tick, "event", `${action.type} ${res.message}`, res.ok ? 0.6 : 0.3);
       // Standing cost (per-biome) + hunger; starvation drains energy.
       const cell = world.cells[agent.y]?.[agent.x];
       if (cell) agent.energy = Math.max(0, agent.energy - cell.energyDecay);

@@ -45,6 +45,13 @@ export interface LogWorld {
   cells: LogCell[][];
 }
 
+export interface MemoryEntry {
+  tick: number;
+  kind: "event" | "plan" | "social" | "observation";
+  text: string;
+  importance: number;
+}
+
 export interface LogAgent {
   id: string;
   x: number;
@@ -52,7 +59,9 @@ export interface LogAgent {
   energy: number;
   hunger: number;
   inventory: Inventory;
-  memory: string[];
+  memory: MemoryEntry[];
+  relationships: Record<string, number>;
+  plan: string[];
 }
 
 export interface TickLog {

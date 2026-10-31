@@ -55,8 +55,11 @@ async function main() {
     const j = Math.floor(rng() * (i + 1));
     [landCells[i], landCells[j]] = [landCells[j], landCells[i]];
   }
-  const agents = landCells.slice(0, agentCount).map((c, i) => createAgent(`a${i}`, c.x, c.y));
-  while (agents.length < agentCount) agents.push(createAgent(`a${agents.length}`, 0, 0));
+  const agentIds = Array.from({ length: agentCount }, (_, i) => `a${i}`);
+  const agents = landCells.slice(0, agentCount).map((c, i) =>
+    createAgent(`a${i}`, c.x, c.y, agentIds)
+  );
+  while (agents.length < agentCount) agents.push(createAgent(`a${agents.length}`, 0, 0, agentIds));
 
   const provider = mock
     ? new MockProvider(seed)
