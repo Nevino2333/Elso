@@ -55,8 +55,8 @@ function buildSituation(
 
   return [
     `position: (${agent.x},${agent.y}), biome: ${here}`,
-    `energy: ${agent.energy.toFixed(0)}/100, hunger: ${agent.hunger.toFixed(0)}/100`,
-    `inventory: ${inv}`,
+    `energy: ${agent.energy.toFixed(0)}/100, hunger: ${agent.hunger.toFixed(0)}/100, mood: ${agent.mood.toFixed(2)}, money: ${agent.money}`,
+    `profession: ${agent.profession}, inventory: ${inv}`,
     visible.length ? `nearby resources: ${visible.join("; ")}` : "nearby resources: none",
     nearby.length ? `other agents visible: ${nearby.join("; ")}` : "other agents visible: none",
     `memory (recent): ${agent.memory.slice(-MAX_MEMORY).map((m) => `[${m.kind}] ${m.text}`).join(" | ") || "empty"}`,
@@ -96,6 +96,13 @@ Choose exactly one action, JSON only, no prose:
 - {"type":"talk","payload":{"to":"<agent id>","text":"<short line>"}} — direct dialogue with a nearby agent; builds affinity
 - {"type":"craft","payload":{"recipe":"tool"|"meal"}} — tool: 1 wood + 1 stone -> +15 energy; meal: 2 food -> -10 hunger +5 energy
 - {"type":"give","payload":{"to":"<agent id>","kind":"food","amount":1}} — only if that agent is within 2 cells and you have surplus
+- {"type":"work"} — perform your profession for money
+- {"type":"trade","payload":{"to":"<agent id>","kind":"food","price":2}}
+- {"type":"build","payload":{"kind":"home"|"workshop"|"market"|"stage"|"plaza"}}
+- {"type":"attend","payload":{"eventId":"<id>"}} — join a nearby social event
+- {"type":"perform"} — play music on a nearby stage (artists)
+- {"type":"play","payload":{"to":"<agent id>"}} — play with a neighbor
+- {"type":"rest_at_home"} — recover at your home
 - {"type":"speak","payload":{"text":"<short message>"}}
 
 Eat only if hunger is high; gather food whenever standing on food; move toward food if you are hungry and have none. Talk to nearby agents to build relationships; share food with hungry neighbors. Never be idle when you can act.`;

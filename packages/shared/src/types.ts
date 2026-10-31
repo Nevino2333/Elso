@@ -1,4 +1,45 @@
-export type TerrainType = "water" | "land";
+export type Profession =
+  | "farmer"
+  | "miner"
+  | "builder"
+  | "artist"
+  | "merchant"
+  | "scholar"
+  | "unemployed";
+
+export type BuildingKind =
+  | "home"
+  | "workshop"
+  | "stage"
+  | "market"
+  | "plaza"
+  | "shop";
+
+export interface Building {
+  id: string;
+  kind: BuildingKind;
+  x: number;
+  y: number;
+  capacity: number;
+  ownerId?: string; // agent id for homes
+}
+
+export type SocialEventKind = "concert" | "game" | "festival" | "market";
+
+export interface SocialEvent {
+  id: string;
+  kind: SocialEventKind;
+  title: string;
+  x: number;
+  y: number;
+  startTick: number;
+  duration: number; // ticks
+  hostId?: string;
+  attendees: string[]; // agent ids
+  ended?: boolean;
+}
+
+export type MemoryKind = "event" | "plan" | "social" | "observation";
 
 export type Biome =
   | "deep-water"
@@ -16,9 +57,9 @@ export type Biome =
   | "mountain"
   | "barren";
 
-export type ResourceKind = "food" | "wood" | "stone" | "ore";
+export type TerrainType = "water" | "land";
 
-export type MemoryKind = "event" | "plan" | "social" | "observation";
+export type ResourceKind = "food" | "wood" | "stone" | "ore";
 
 export interface MemoryEntry {
   tick: number;
@@ -52,6 +93,8 @@ export interface World {
   height: number;
   seed: number;
   cells: Cell[][];
+  buildings: Building[];
+  events: SocialEvent[];
 }
 
 export interface AgentState {
@@ -66,6 +109,13 @@ export interface AgentState {
   relationships: Record<string, number>;
   /** Short-term plan queue (human-readable steps). */
   plan: string[];
+  // Social life layer
+  profession: Profession;
+  homeBuildingId?: string;
+  workplaceId?: string;
+  money: number;
+  mood: number; // 0..1
+  skills: Record<string, number>;
 }
 
 export type ActionType =
@@ -76,7 +126,14 @@ export type ActionType =
   | "speak"
   | "give"
   | "talk"
-  | "craft";
+  | "craft"
+  | "work"
+  | "trade"
+  | "build"
+  | "attend"
+  | "perform"
+  | "play"
+  | "rest_at_home";
 
 export interface Action {
   type: ActionType;
@@ -96,5 +153,7 @@ export interface TickLog {
     communications: number; // speak/talk actions
     events: number; // successful actions
     traded: number; // units transferred via give
+    socialEvents: number; // events started/ended
+    moneySupply: number; // total money
   };
 }

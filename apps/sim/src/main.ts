@@ -1,3 +1,4 @@
+import type { AgentState } from "@elso/shared";
 import { LatLonGridGenerator } from "./world/generator.ts";
 import { createAgent } from "./agent/state.ts";
 import { MockProvider } from "./llm/mock.ts";
@@ -55,10 +56,20 @@ async function main() {
     const j = Math.floor(rng() * (i + 1));
     [landCells[i], landCells[j]] = [landCells[j], landCells[i]];
   }
+  const professions: AgentState["profession"][] = ["farmer", "miner", "builder", "artist", "merchant", "scholar"];
+  const homes = world.buildings.filter((b) => b.kind === "home");
+  const works = world.buildings.filter((b) => b.kind === "workshop" || b.kind === "market");
   const agentIds = Array.from({ length: agentCount }, (_, i) => `a${i}`);
-  const agents = landCells.slice(0, agentCount).map((c, i) =>
-    createAgent(`a${i}`, c.x, c.y, agentIds)
-  );
+  const agents = landCells.slice(0, agentCount).map((c, i) => {
+    const a = createAgent(`a${i}`, c.x, c.y, agentIds, professions[i % professions.length]);
+    a.homeBuildingId = homes[i % Math.max(1, homes.length)]?.id;
+    a.workplaceId = works[i % Math.max(1, works.length)]?.id;
+    if (a.homeBuildingId) {
+      const hb = world.buildings.find((b) => b.id === a.homeBuildingId);
+      if (hb) hb.ownerId = a.id;
+    }
+    return a;
+  });
   while (agents.length < agentCount) agents.push(createAgent(`a${agents.length}`, 0, 0, agentIds));
 
   const provider = mock

@@ -1,6 +1,6 @@
 import type { AgentState, MemoryEntry, Inventory } from "@elso/shared";
 
-export function createAgent(id: string, x: number, y: number, allIds: string[] = []): AgentState {
+export function createAgent(id: string, x: number, y: number, allIds: string[] = [], profession: AgentState["profession"] = "unemployed"): AgentState {
   const inventory: Inventory = { food: 2, wood: 0, stone: 0, ore: 0 };
   const relationships: Record<string, number> = {};
   for (const other of allIds) {
@@ -16,9 +16,12 @@ export function createAgent(id: string, x: number, y: number, allIds: string[] =
     memory: [],
     relationships,
     plan: [],
+    profession,
+    money: 10,
+    mood: 0.5,
+    skills: {},
   };
 }
-
 export function addMemory(
   agent: AgentState,
   tick: number,

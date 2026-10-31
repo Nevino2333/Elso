@@ -98,7 +98,30 @@ export class MockProvider implements LLMProvider {
       return { type: "gather" };
     }
 
-    // 5. Craft when materials allow (social/progression layer).
+    // 4b. Attend nearby social events.
+    const ev = world.events.find((e) => !e.ended && Math.abs(e.x - agent.x) + Math.abs(e.y - agent.y) <= 3);
+    if (ev && this.rng() < 0.6) {
+      return { type: "attend", payload: { eventId: ev.id } };
+    }
+
+    // 4c. Perform if artist on stage.
+    if (agent.profession === "artist") {
+      const stage = world.buildings.find((b) => b.kind === "stage" && Math.abs(b.x - agent.x) + Math.abs(b.y - agent.y) <= 1);
+      if (stage && this.rng() < 0.4) return { type: "perform" };
+    }
+
+    // 4d. Work at workplace.
+    if (agent.workplaceId && this.rng() < 0.35) return { type: "work" };
+
+    // 4e. Play with nearby neighbor.
+    const playMate = agents.find((a) => a.id !== agent.id && a.energy > 0 && Math.abs(a.x - agent.x) + Math.abs(a.y - agent.y) <= 2);
+    if (playMate && this.rng() < 0.2) return { type: "play", payload: { to: playMate.id } };
+
+    // 4f. Rest at home if tired.
+    const home = world.buildings.find((b) => b.id === agent.homeBuildingId);
+    if (home && agent.energy < 50 && Math.abs(home.x - agent.x) + Math.abs(home.y - agent.y) <= 1 && this.rng() < 0.5) {
+      return { type: "rest_at_home" };
+    }
     if (agent.inventory.wood >= 1 && agent.inventory.stone >= 1 && this.rng() < 0.25) {
       return { type: "craft", payload: { recipe: "tool" } };
     }

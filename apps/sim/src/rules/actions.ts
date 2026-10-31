@@ -101,6 +101,81 @@ export function executeAction(
       }
       return { ok: false, message: "unknown recipe" };
     }
+    case "work": {
+      const b = world.buildings.find((x) => x.id === agent.workplaceId);
+      const pay = agent.profession === "artist" ? 4 : agent.profession === "merchant" ? 5 : 3;
+      agent.money += pay;
+      agent.energy = Math.max(0, agent.energy - 3);
+      agent.skills[agent.profession] = (agent.skills[agent.profession] ?? 0) + 0.1;
+      return { ok: true, message: `worked (${agent.profession}) +${pay} money` };
+    }
+    case "trade": {
+      const toId = action.payload?.to as string;
+      const kind = (action.payload?.kind as ResourceKind) ?? "food";
+      const price = (action.payload?.price as number) ?? 2;
+      const target = agents.find((a) => a.id === toId);
+      if (!target) return { ok: false, message: "no target" };
+      if (manhattan(agent, target) > 2) return { ok: false, message: "too far" };
+      if (agent.inventory[kind] < 1) return { ok: false, message: `no ${kind}` };
+      if (target.money < price) return { ok: false, message: "buyer broke" };
+      agent.inventory[kind] -= 1;
+      target.inventory[kind] += 1;
+      agent.money += price;
+      target.money -= price;
+      return { ok: true, message: `traded 1 ${kind} for ${price} money` };
+    }
+    case "build": {
+      const kind = action.payload?.kind as any;
+      const cost = kind === "home" ? 8 : 12;
+      if (agent.money < cost) return { ok: false, message: "not enough money" };
+      const x = agent.x;
+      const y = agent.y;
+      if (world.buildings.some((b) => b.x === x && b.y === y)) return { ok: false, message: "occupied" };
+      agent.money -= cost;
+      const id = `b${world.buildings.length}`;
+      world.buildings.push({ id, kind, x, y, capacity: kind === "home" ? 1 : 4, ownerId: kind === "home" ? agent.id : undefined });
+      if (kind === "home") agent.homeBuildingId = id;
+      return { ok: true, message: `built ${kind}` };
+    }
+    case "attend": {
+      const eventId = action.payload?.eventId as string;
+      const ev = world.events.find((e) => e.id === eventId);
+      if (!ev) return { ok: false, message: "no event" };
+      if (manhattan(agent, { x: ev.x, y: ev.y } as any) > 3) return { ok: false, message: "too far" };
+      if (ev.attendees.includes(agent.id)) return { ok: false, message: "already attending" };
+      ev.attendees.push(agent.id);
+      agent.mood = Math.min(1, agent.mood + 0.1);
+      return { ok: true, message: `attended ${ev.title}` };
+    }
+    case "perform": {
+      const stage = world.buildings.find((b) => b.kind === "stage" && manhattan(b as any, agent) <= 1);
+      if (!stage) return { ok: false, message: "no stage" };
+      agent.money += 6;
+      agent.mood = Math.min(1, agent.mood + 0.15);
+      agent.skills.artist = (agent.skills.artist ?? 0) + 0.2;
+      return { ok: true, message: "performed on stage" };
+    }
+    case "play": {
+      const toId = action.payload?.to as string;
+      const target = agents.find((a) => a.id === toId);
+      if (!target) return { ok: false, message: "no target" };
+      if (manhattan(agent, target) > 2) return { ok: false, message: "too far" };
+      agent.mood = Math.min(1, agent.mood + 0.08);
+      target.mood = Math.min(1, target.mood + 0.08);
+      const cur = agent.relationships[toId] ?? 0;
+      agent.relationships[toId] = Math.max(-1, Math.min(1, cur + 0.06));
+      if (target.relationships[agent.id] === undefined) target.relationships[agent.id] = 0;
+      target.relationships[agent.id] = Math.max(-1, Math.min(1, target.relationships[agent.id] + 0.06));
+      return { ok: true, message: `played with ${target.id}` };
+    }
+    case "rest_at_home": {
+      const home = world.buildings.find((b) => b.id === agent.homeBuildingId);
+      if (!home || manhattan(home as any, agent) > 1) return { ok: false, message: "not at home" };
+      agent.energy = Math.min(100, agent.energy + 15);
+      agent.hunger = Math.min(100, agent.hunger - 3);
+      agent.mood = Math.min(1, agent.mood + 0.05);
+      return { ok: true, message: "rested at home" };
+    }
     case "speak": {
       return { ok: true, message: `said: ${action.payload?.text ?? ""}` };
     }

@@ -38,11 +38,35 @@ export interface LogCell {
   energyDecay: number;
 }
 
+export interface LogBuilding {
+  id: string;
+  kind: "home" | "workshop" | "stage" | "market" | "plaza" | "shop";
+  x: number;
+  y: number;
+  capacity: number;
+  ownerId?: string;
+}
+
+export interface LogEvent {
+  id: string;
+  kind: "concert" | "game" | "festival" | "market";
+  title: string;
+  x: number;
+  y: number;
+  startTick: number;
+  duration: number;
+  hostId?: string;
+  attendees: string[];
+  ended?: boolean;
+}
+
 export interface LogWorld {
   width: number;
   height: number;
   seed: number;
   cells: LogCell[][];
+  buildings: LogBuilding[];
+  events: LogEvent[];
 }
 
 export interface MemoryEntry {
@@ -62,6 +86,12 @@ export interface LogAgent {
   memory: MemoryEntry[];
   relationships: Record<string, number>;
   plan: string[];
+  profession: string;
+  homeBuildingId?: string;
+  workplaceId?: string;
+  money: number;
+  mood: number;
+  skills: Record<string, number>;
 }
 
 export interface TickLog {
@@ -76,6 +106,8 @@ export interface TickLog {
     communications: number;
     events: number;
     traded: number;
+    socialEvents: number;
+    moneySupply: number;
   };
 }
 

@@ -1,4 +1,4 @@
-import type { World, Cell, Biome, ResourceKind, TerrainType } from "@elso/shared";
+import type { World, Cell, Biome, ResourceKind, TerrainType, Building } from "@elso/shared";
 import { fbm2 } from "./noise.ts";
 
 export interface WorldOpts {
@@ -69,7 +69,40 @@ export class LatLonGridGenerator implements IWorldGenerator {
       cells.push(row);
     }
 
-    return { width, height, seed, cells };
+    // Place buildings deterministically on suitable land.
+    const buildings: Building[] = [];
+    let bid = 0;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const cell = cells[y][x];
+        if (cell.terrain !== "land") continue;
+        const h = positionHash(x, y, seed + 999);
+        let kind: Building["kind"] | null = null;
+        if (cell.biome === "grassland" || cell.biome === "temperate-forest") {
+          if (h < 0.018) kind = "home";
+          else if (h < 0.024) kind = "plaza";
+        } else if (cell.biome === "mountain" || cell.biome === "barren" || cell.biome === "desert") {
+          if (h < 0.02) kind = "workshop";
+        } else if (cell.biome === "savanna" || cell.biome === "beach") {
+          if (h < 0.012) kind = "market";
+        }
+        if (cell.biome === "grassland" && h >= 0.985) kind = "stage";
+        if (kind) {
+          buildings.push({ id: `b${bid++}`, kind, x, y, capacity: kind === "home" ? 1 : 4 });
+        }
+      }
+    }
+    // Ensure at least one of each key venue.
+    if (!buildings.some((b) => b.kind === "stage")) {
+      const c = cells[Math.floor(height / 2)][Math.floor(width / 2)];
+      if (c.terrain === "land") buildings.push({ id: `b${bid++}`, kind: "stage", x: c.x, y: c.y, capacity: 8 });
+    }
+    if (!buildings.some((b) => b.kind === "market")) {
+      const c = cells[Math.floor(height / 3)][Math.floor(width / 3)];
+      if (c.terrain === "land") buildings.push({ id: `b${bid++}`, kind: "market", x: c.x, y: c.y, capacity: 8 });
+    }
+
+    return { width, height, seed, cells, buildings, events: [] };
   }
 }
 

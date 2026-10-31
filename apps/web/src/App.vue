@@ -118,7 +118,7 @@
           <div class="sel-head">
             <span class="dot" :class="energyClass(selectedAgent.energy)"></span>
             <span class="aname">{{ selectedAgent.id }}</span>
-            <span class="pos">({{ selectedAgent.x }}, {{ selectedAgent.y }})</span>
+            <span class="pos">({{ selectedAgent.x }}, {{ selectedAgent.y }}) · {{ selectedAgent.profession }} · 💰{{ selectedAgent.money }} · mood {{ (selectedAgent.mood*100).toFixed(0) }}</span>
           </div>
           <div class="sel-bars">
             <div class="barrow"><span>energy</span><div class="bar"><i :style="{ width: selectedAgent.energy + '%', background: '#4be3a4' }"></i></div><span>{{ selectedAgent.energy.toFixed(0) }}</span></div>
@@ -254,6 +254,8 @@ const feed = computed(() => {
       out.push({ who: a.agentId, text: `→ ${a.action.payload?.to}: ${a.action.payload?.text ?? ""}` });
     } else if (a.action.type === "give" && a.result?.startsWith("gave")) {
       out.push({ who: a.agentId, text: a.result });
+    } else if (["work","trade","build","attend","perform","play","rest_at_home"].includes(a.action.type) && a.result) {
+      out.push({ who: a.agentId, text: `${a.action.type}: ${a.result}` });
     }
   }
   return out.slice(-12).reverse();

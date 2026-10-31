@@ -1,7 +1,7 @@
 import type { World, AgentState, TickLog } from "@elso/shared";
 import { executeAction } from "../rules/actions.ts";
 import type { LLMProvider } from "../llm/provider.ts";
-import { addMemory } from "../agent/state.ts";
+import { addMemory, adjustRelationship } from "../agent/state.ts";
 
 export interface SimConfig {
   seed: number;
@@ -26,6 +26,7 @@ export async function runSimulation(
   let gatheredTotal = 0;
   let communications = 0;
   let events = 0;
+  let socialEvents = 0;
   let traded = 0;
 
   // Snapshot initial resource stocks so regeneration never exceeds them.
@@ -47,9 +48,46 @@ export async function runSimulation(
       }
     }
 
+    // Social event scheduling (deterministic).
+    if (tick % 20 === 0) {
+      const venues = world.buildings.filter((b) => b.kind === "stage" || b.kind === "plaza" || b.kind === "market");
+      const v = venues[tick % Math.max(1, venues.length)];
+      if (v) {
+        const kind = v.kind === "stage" ? "concert" : v.kind === "market" ? "market" : "festival";
+        const ev: World["events"][number] = {
+          id: `e${tick}`,
+          kind,
+          title: kind === "concert" ? "Town Concert" : kind === "market" ? "Market Day" : "Festival",
+          x: v.x,
+          y: v.y,
+          startTick: tick,
+          duration: 8,
+          hostId: world.buildings.find((b) => b.kind === "home")?.ownerId,
+          attendees: [],
+        };
+        world.events.push(ev);
+        socialEvents++;
+      }
+    }
+    // Settle ended events.
+    for (const ev of world.events) {
+      if (!ev.ended && tick >= ev.startTick + ev.duration) {
+        ev.ended = true;
+        for (const aid of ev.attendees) {
+          const a = agents.find((x) => x.id === aid);
+          if (!a) continue;
+          addMemory(a, tick, "social", `attended ${ev.title}`, 0.7);
+          a.mood = Math.min(1, a.mood + 0.15);
+          if (ev.hostId && ev.hostId !== a.id) adjustRelationship(a, ev.hostId, 0.1);
+        }
+        if (ev.hostId) {
+          const host = agents.find((x) => x.id === ev.hostId);
+          if (host) host.money += ev.kind === "concert" ? 20 : 5;
+        }
+      }
+    }
     const actions: TickLog["actions"] = [];
     for (const agent of agents) {
-      if (agent.energy <= 0) continue;
       const context = `tick ${tick}`;
       const action = await provider.decide(agent, world, agents, context);
       const res = ruleEngine
@@ -85,7 +123,7 @@ export async function runSimulation(
       ...(tick === 0 ? { world } : {}),
       agents: agents.map((a) => ({ ...a, memory: [...a.memory] })),
       actions,
-      metrics: { alive, gathered: gatheredTotal, communications, events, traded },
+      metrics: { alive, gathered: gatheredTotal, communications, events, traded, socialEvents, moneySupply: agents.reduce((s, a) => s + a.money, 0) },
     };
     onTick(log);
   }
