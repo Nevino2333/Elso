@@ -85,8 +85,14 @@ export interface LogAgent {
   inventory: Inventory;
   memory: MemoryEntry[];
   relationships: Record<string, number>;
-  plan: string[];
   profession: string;
+  materials: Record<string, number>;
+  knowledge: string[];
+  dna: { curiosity: number; endurance: number; intelligence: number; lifespan: number };
+  age: number;
+  health: number;
+  birthTick: number;
+  parentIds: string[];
   homeBuildingId?: string;
   workplaceId?: string;
   money: number;

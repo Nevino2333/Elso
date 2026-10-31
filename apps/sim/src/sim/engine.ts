@@ -86,8 +86,32 @@ export async function runSimulation(
         }
       }
     }
+    // Lifecycle + aging + teaching.
+    for (const agent of agents) {
+      if (agent.energy <= 0) continue;
+      agent.age += 1;
+      if (agent.age > agent.dna.lifespan) agent.health = Math.max(0, agent.health - 2);
+      if (agent.health <= 0) agent.energy = 0;
+    }
+    // Teacher transfer: older knowledgeable agent teaches nearby younger agent one knowledge.
+    for (const t of agents) {
+      if (t.energy <= 0 || t.knowledge.length === 0) continue;
+      for (const s of agents) {
+        if (s === t || s.energy <= 0) continue;
+        if (s.age > t.age) continue;
+        if (Math.abs(s.x - t.x) + Math.abs(s.y - t.y) > 2) continue;
+        if (((tick * 31 + t.id.charCodeAt(0) + s.id.charCodeAt(0)) % 100) / 100 < 0.05 && t.knowledge.length > s.knowledge.length) {
+          const k = t.knowledge[s.knowledge.length % t.knowledge.length];
+          if (!s.knowledge.includes(k)) {
+            s.knowledge.push(k);
+            addMemory(s, tick, "social", `learned ${k} from ${t.id}`, 0.8);
+          }
+        }
+      }
+    }
     const actions: TickLog["actions"] = [];
     for (const agent of agents) {
+      if (agent.energy <= 0) continue;
       const context = `tick ${tick}`;
       const action = await provider.decide(agent, world, agents, context);
       const res = ruleEngine

@@ -97,6 +97,13 @@ export interface World {
   events: SocialEvent[];
 }
 
+export interface AgentDNA {
+  curiosity: number; // 0..1
+  endurance: number;
+  intelligence: number;
+  lifespan: number; // ticks
+}
+
 export interface AgentState {
   id: string;
   x: number;
@@ -104,6 +111,14 @@ export interface AgentState {
   energy: number; // 0..100
   hunger: number; // 0..100
   inventory: Inventory;
+  materials: Record<string, number>; // elements/compounds discovered or carried
+  knowledge: string[]; // discovered formulas/reactions
+  dna: AgentDNA;
+  age: number; // ticks
+  health: number; // 0..100
+  birthTick: number;
+  parentIds: string[];
+  teacherId?: string;
   memory: MemoryEntry[]; // rolling memory stream (most recent last)
   /** Affinity toward other agents, -1..1. */
   relationships: Record<string, number>;

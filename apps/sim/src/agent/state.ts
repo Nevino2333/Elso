@@ -1,6 +1,8 @@
 import type { AgentState, MemoryEntry, Inventory } from "@elso/shared";
+import { createRng } from "@elso/shared";
 
-export function createAgent(id: string, x: number, y: number, allIds: string[] = [], profession: AgentState["profession"] = "unemployed"): AgentState {
+export function createAgent(id: string, x: number, y: number, allIds: string[] = [], profession: AgentState["profession"] = "unemployed", seed = 1, birthTick = 0, parentIds: string[] = []): AgentState {
+  const rng = createRng(seed + id.charCodeAt(0));
   const inventory: Inventory = { food: 2, wood: 0, stone: 0, ore: 0 };
   const relationships: Record<string, number> = {};
   for (const other of allIds) {
@@ -13,6 +15,18 @@ export function createAgent(id: string, x: number, y: number, allIds: string[] =
     energy: 100,
     hunger: 0,
     inventory,
+    materials: {},
+    knowledge: [],
+    dna: {
+      curiosity: 0.3 + rng() * 0.7,
+      endurance: 0.3 + rng() * 0.7,
+      intelligence: 0.3 + rng() * 0.7,
+      lifespan: 800 + Math.floor(rng() * 400),
+    },
+    age: 0,
+    health: 100,
+    birthTick,
+    parentIds,
     memory: [],
     relationships,
     plan: [],
@@ -22,6 +36,7 @@ export function createAgent(id: string, x: number, y: number, allIds: string[] =
     skills: {},
   };
 }
+
 export function addMemory(
   agent: AgentState,
   tick: number,

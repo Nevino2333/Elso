@@ -61,7 +61,7 @@ async function main() {
   const works = world.buildings.filter((b) => b.kind === "workshop" || b.kind === "market");
   const agentIds = Array.from({ length: agentCount }, (_, i) => `a${i}`);
   const agents = landCells.slice(0, agentCount).map((c, i) => {
-    const a = createAgent(`a${i}`, c.x, c.y, agentIds, professions[i % professions.length]);
+    const a = createAgent(`a${i}`, c.x, c.y, agentIds, professions[i % professions.length], seed, 0, []);
     a.homeBuildingId = homes[i % Math.max(1, homes.length)]?.id;
     a.workplaceId = works[i % Math.max(1, works.length)]?.id;
     if (a.homeBuildingId) {
