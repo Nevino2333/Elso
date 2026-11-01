@@ -6,5 +6,6 @@ logs/*.jsonl
 .env.local
 *.log
 .agent-context/
+.zcode-site/
 .DS_Store
 Thumbs.db

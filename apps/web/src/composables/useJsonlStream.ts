@@ -36,6 +36,7 @@ export interface LogCell {
   resource: number;
   resourceKind: ResourceKind | null;
   energyDecay: number;
+  minerals: string[];
 }
 
 export interface LogBuilding {
@@ -76,18 +77,53 @@ export interface MemoryEntry {
   importance: number;
 }
 
+export type LogGender = "female" | "male";
+export type LogDayPhase = "dawn" | "day" | "dusk" | "night";
+export type LogWeather = "clear" | "cloudy" | "rain" | "storm" | "snow";
+
+export interface LogTime {
+  day: number;
+  hour: number;
+  phase: LogDayPhase;
+}
+
+export interface LogEmotions {
+  joy: number;
+  fear: number;
+  anger: number;
+  sadness: number;
+}
+
+export interface LogVoice {
+  id: string;
+  name: string;
+  text: string;
+  emotion?: string;
+}
+
 export interface LogAgent {
   id: string;
+  name?: string;
+  gender?: LogGender;
   x: number;
   y: number;
   energy: number;
   hunger: number;
+  thirst?: number;
+  sleepiness?: number;
+  awake?: boolean;
+  bodyTemp?: number;
+  emotions?: LogEmotions;
+  thought?: string;
   inventory: Inventory;
   memory: MemoryEntry[];
   relationships: Record<string, number>;
   profession: string;
   materials: Record<string, number>;
   knowledge: string[];
+  knownRecipes: string[];
+  experiments: { tick: number; inputs: string[]; condition: string; success: boolean }[];
+  generation: number;
   dna: { curiosity: number; endurance: number; intelligence: number; lifespan: number };
   age: number;
   health: number;
@@ -104,8 +140,15 @@ export interface TickLog {
   tick: number;
   seed: number;
   world?: LogWorld;
+  time?: LogTime;
+  weather?: LogWeather;
   agents: LogAgent[];
   actions: { agentId: string; action: { type: string; payload?: any }; result?: string }[];
+  voices?: LogVoice[];
+  discoveries: { agentId: string; recipeId: string; via: "experiment" | "teach" }[];
+  births: { id: string; name?: string; parentIds: string[]; generation: number }[];
+  deaths: { id: string; name?: string; age: number; cause: string }[];
+  techStage: number;
   metrics: {
     alive: number;
     gathered: number;
@@ -114,6 +157,9 @@ export interface TickLog {
     traded: number;
     socialEvents: number;
     moneySupply: number;
+    recipes: number;
+    births: number;
+    deaths: number;
   };
 }
 

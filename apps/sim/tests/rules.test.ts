@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import type { TickLog } from "@elso/shared";
 import { LatLonGridGenerator } from "../src/world/generator.ts";
 import { createAgent } from "../src/agent/state.ts";
-import { MockProvider } from "../src/llm/mock.ts";
+class RestProvider { async decide() { return { type: "rest" } as any; } }
 import { runSimulation } from "../src/sim/engine.ts";
 import { RuleEngine } from "../src/rules/engine.ts";
 import { hungerSlowPlugin } from "../src/rules/plugins/hunger.ts";
@@ -17,7 +17,7 @@ async function run(useHungerRule: boolean) {
   let last: TickLog | undefined;
   await runSimulation(
     { seed: 42, ticks: 10, agentCount: 1, width: 5, height: 5 },
-    new MockProvider(42),
+    new RestProvider(),
     world,
     agents,
     (log) => {

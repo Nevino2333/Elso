@@ -64,6 +64,7 @@ export class LatLonGridGenerator implements IWorldGenerator {
           resource: round3(resource),
           resourceKind,
           energyDecay: decayFor(biome),
+          minerals: mineralsFor(biome, elevation, x, y, seed),
         });
       }
       cells.push(row);
@@ -153,6 +154,71 @@ function classify(
 function positionHash(x: number, y: number, seed: number): number {
   const n = Math.sin(x * 12.9898 + y * 78.233 + seed * 0.771) * 43758.5453;
   return n - Math.floor(n);
+}
+
+/**
+ * Deterministic mineral deposits per biome: mountains carry ores, deserts
+ * evaporites, plains/forests the stone-age surface minerals. 0..2 ids per cell.
+ */
+function mineralsFor(
+  biome: Biome,
+  elevation: number,
+  x: number,
+  y: number,
+  seed: number
+): string[] {
+  const h = positionHash(x, y, seed + 777);
+  const out: string[] = [];
+  const push = (id: string) => {
+    if (!out.includes(id)) out.push(id);
+  };
+  switch (biome) {
+    case "mountain":
+      if (elevation > 0.86) {
+        if (h < 0.25) push("magnetite");
+        else if (h < 0.4) push("cassiterite");
+      }
+      if (h > 0.55 && h < 0.8) push("hematite");
+      if (h > 0.8) push("chalcopyrite");
+      if (h < 0.12) push("quartz");
+      break;
+    case "barren":
+    case "desert":
+      if (h < 0.3) push("halite");
+      else if (h < 0.5) push("gypsum");
+      if (h > 0.85) push("flint");
+      break;
+    case "grassland":
+    case "savanna":
+      if (h < 0.22) push("flint");
+      else if (h < 0.34) push("clay");
+      if (h > 0.9) push("clay");
+      break;
+    case "temperate-forest":
+    case "taiga":
+    case "rainforest":
+      if (h < 0.2) push("flint");
+      else if (h < 0.35) push("clay");
+      else if (h < 0.62) push("peat");
+      break;
+    case "tundra":
+      // 苔原泥炭沼泽: 北方文明的火种来源。
+      if (h < 0.15) push("flint");
+      else if (h < 0.35) push("peat");
+      if (h > 0.9) push("magnetite");
+      break;
+    case "snow":
+      if (h < 0.15) push("flint");
+      if (h > 0.9) push("magnetite");
+      break;
+    case "beach":
+      if (h < 0.2) push("clay");
+      if (h > 0.85) push("flint");
+      break;
+    default:
+      break;
+  }
+  return out;
 }
 
 function resourceFor(biome: Biome, x: number, y: number, seed: number): ResourceKind | null {

@@ -3,7 +3,7 @@
     <header class="topbar">
       <div class="brand">
         <span class="logo">ELSO</span>
-        <span class="tagline">AI-only planet society sandbox</span>
+        <span class="tagline">一个由 AI 生活的平行世界</span>
       </div>
       <div class="controls">
         <input
@@ -14,7 +14,7 @@
           @keyup.enter="load"
         />
         <button class="btn" :disabled="loading" @click="load">
-          {{ loading ? "Loading…" : "Load" }}
+          {{ loading ? "载入中…" : "载入" }}
         </button>
         <div class="seg" role="group" aria-label="View mode">
           <button :class="{ active: viewMode === '2d' }" @click="viewMode = '2d'">2D</button>
@@ -27,13 +27,13 @@
 
     <main class="layout">
       <section class="stage">
-        <div class="viewport">
+        <div class="viewport" :style="{ aspectRatio: gridW + ' / ' + gridH }">
           <canvas
             v-show="viewMode === '2d'"
             ref="canvas"
             class="grid"
-            width="720"
-            height="720"
+            :width="canvasW"
+            :height="canvasH"
             @mousemove="onHover"
             @mouseleave="hover = null"
             @click="onCanvasClick"
@@ -43,7 +43,7 @@
             :agents="current?.agents ?? []"
             :world="world"
             :selected="selected"
-            :day="day"
+            :day="current?.time?.hour ?? day"
             @select="selected = $event"
           />
           <div v-if="!current" class="placeholder">
@@ -55,8 +55,16 @@
             <div class="tt-row"><b>{{ hover.cell?.biome ?? '—' }}</b> <span class="tt-dim">cell {{ hover.cx }},{{ hover.cy }}</span></div>
             <div class="tt-row">elev {{ (hover.cell?.elevation ?? 0).toFixed(2) }} · temp {{ (hover.cell?.temperature ?? 0).toFixed(2) }} · moist {{ (hover.cell?.moisture ?? 0).toFixed(2) }}</div>
             <div v-if="hover.cell?.resourceKind" class="tt-row">resource: {{ hover.cell.resourceKind }} × {{ (hover.cell.resource ?? 0).toFixed(2) }}</div>
-            <div v-if="hover.agent" class="tt-row tt-agent">{{ hover.agent.id }} · E {{ hover.agent.energy.toFixed(0) }} · H {{ hover.agent.hunger.toFixed(0) }}</div>
+            <div v-if="hover.agent" class="tt-row tt-agent">{{ hover.agent.name ?? hover.agent.id }}{{ hover.agent.gender === "female" ? "♀" : hover.agent.gender === "male" ? "♂" : "" }} · E {{ hover.agent.energy.toFixed(0) }} · H {{ hover.agent.hunger.toFixed(0) }}<span v-if="hover.agent.thought"> · “{{ hover.agent.thought.slice(0, 24) }}…”</span></div>
           </div>
+        </div>
+
+        <div class="worldclock" v-if="current">
+          <span class="wc-phase" :class="'ph-' + (current.time?.phase ?? 'day')">{{ phaseZh }}</span>
+          <span class="wc-time">{{ clockLabel }}</span>
+          <span class="wc-weather">{{ weatherIcon }} {{ weatherZh }}</span>
+          <span class="wc-sep">·</span>
+          <span class="wc-pop">{{ current.metrics.alive }} 位居民 · 第 {{ genMax }} 代</span>
         </div>
 
         <div class="timeline">
@@ -75,7 +83,7 @@
 
         <div class="transport">
           <button class="playbtn" :disabled="maxTick === 0" @click="togglePlay">
-            {{ playing ? "⏸ Pause" : "▶ Play" }}
+            {{ playing ? "⏸ 暂停" : "▶ 播放" }}
           </button>
           <div class="speeds">
             <button
@@ -86,7 +94,7 @@
             >{{ s }}×</button>
           </div>
           <div class="daybox">
-            <span class="daylabel">day</span>
+            <span class="daylabel">时刻</span>
             <input v-model.number="day" class="day" type="range" min="0" max="24" step="0.5" />
             <span class="dayval">{{ day.toFixed(1) }}h</span>
           </div>
@@ -104,25 +112,90 @@
           <div class="metric"><span class="k">alive</span><span class="v">{{ current.metrics.alive }}</span></div>
           <div class="metric"><span class="k">gathered</span><span class="v">{{ current.metrics.gathered.toFixed(1) }}</span></div>
           <div class="metric"><span class="k">comm</span><span class="v">{{ current.metrics.communications }}</span></div>
-          <div class="metric"><span class="k">events</span><span class="v">{{ current.metrics.events }}</span></div>
           <div class="metric"><span class="k">traded</span><span class="v">{{ current.metrics.traded.toFixed(1) }}</span></div>
+          <div class="metric"><span class="k">births</span><span class="v">{{ current.metrics.births }}</span></div>
+          <div class="metric"><span class="k">deaths</span><span class="v">{{ current.metrics.deaths }}</span></div>
+        </div>
+
+        <div class="civpanel" v-if="current">
+          <div class="civhead">
+            <span class="civstage">{{ techName }}</span>
+            <span class="civtech">tech {{ current.techStage }}/4 · {{ current.metrics.recipes }} recipes known</span>
+          </div>
+          <div class="techbar"><i :style="{ width: (current.techStage / 4) * 100 + '%' }"></i></div>
+          <div class="discoveries" v-if="current.discoveries.length">
+            <div v-for="(d, i) in current.discoveries" :key="i" class="discline">
+              <span class="disc-icon">{{ d.via === "teach" ? "🧑‍🏫" : "💡" }}</span>
+              <b>{{ d.agentId }}</b> {{ d.via === "teach" ? "taught" : "discovered" }} <b class="disc-recipe">{{ d.recipeId }}</b>
+            </div>
+          </div>
+          <div class="lifeline" v-if="current.births.length || current.deaths.length">
+            <div v-for="(b, i) in current.births" :key="'b' + i" class="lifeline-row birth">
+              ✚ {{ b.name ?? b.id }} 出生 (第{{ b.generation + 1 }}代) · {{ b.parentIds.join(" × ") }}
+            </div>
+            <div v-for="(d, i) in current.deaths" :key="'d' + i" class="lifeline-row death">
+              ✝ {{ d.name ?? d.id }} 逝于{{ deathCauseZh(d.cause) }}, 享年{{ d.age }}
+            </div>
+          </div>
+        </div>
+
+        <div class="voices" v-if="current?.voices?.length">
+          <h2>此刻心声 <span class="dim">voices</span></h2>
+          <div class="voicebox">
+            <div
+              v-for="v in current.voices"
+              :key="v.id"
+              class="voiceline"
+              :class="'em-' + (v.emotion ?? 'calm')"
+              @click="selected = v.id"
+            >
+              <span class="vname">{{ v.name }}</span>
+              <span v-if="v.emotion" class="vemo">{{ v.emotion }}</span>
+              <span class="vtext">{{ v.text }}</span>
+            </div>
+          </div>
         </div>
 
         <div class="spark" v-if="logs.length">
           <canvas ref="spark" width="300" height="60"></canvas>
-          <div class="sparklabel">alive over time</div>
+          <div class="sparklabel">人口变化 · alive over time</div>
         </div>
 
-        <h2>Selected agent</h2>
+        <h2>居民档案 <span class="dim">resident</span></h2>
         <div class="selected" v-if="selectedAgent">
           <div class="sel-head">
             <span class="dot" :class="energyClass(selectedAgent.energy)"></span>
-            <span class="aname">{{ selectedAgent.id }}</span>
-            <span class="pos">({{ selectedAgent.x }}, {{ selectedAgent.y }}) · {{ selectedAgent.profession }} · 💰{{ selectedAgent.money }} · mood {{ (selectedAgent.mood*100).toFixed(0) }}</span>
+            <span class="aname">{{ selectedAgent.name ?? selectedAgent.id }}<i class="gendersym">{{ genderSym(selectedAgent) }}</i></span>
+            <span class="pos">({{ selectedAgent.x }}, {{ selectedAgent.y }}) · gen {{ selectedAgent.generation }} · {{ ageLabel(selectedAgent) }} · {{ selectedAgent.profession }}</span>
           </div>
+          <div class="thought" v-if="selectedAgent.thought">“{{ selectedAgent.thought }}”</div>
           <div class="sel-bars">
             <div class="barrow"><span>energy</span><div class="bar"><i :style="{ width: selectedAgent.energy + '%', background: '#4be3a4' }"></i></div><span>{{ selectedAgent.energy.toFixed(0) }}</span></div>
             <div class="barrow"><span>hunger</span><div class="bar"><i :style="{ width: selectedAgent.hunger + '%', background: '#f0b44c' }"></i></div><span>{{ selectedAgent.hunger.toFixed(0) }}</span></div>
+            <div class="barrow" v-if="selectedAgent.thirst !== undefined"><span>thirst</span><div class="bar"><i :style="{ width: (selectedAgent.thirst ?? 0) + '%', background: '#5db8f0' }"></i></div><span>{{ (selectedAgent.thirst ?? 0).toFixed(0) }}</span></div>
+            <div class="barrow" v-if="selectedAgent.sleepiness !== undefined"><span>sleepy</span><div class="bar"><i :style="{ width: (selectedAgent.sleepiness ?? 0) + '%', background: '#a98af0' }"></i></div><span>{{ (selectedAgent.sleepiness ?? 0).toFixed(0) }}</span></div>
+            <div class="barrow"><span>health</span><div class="bar"><i :style="{ width: selectedAgent.health + '%', background: '#e57373' }"></i></div><span>{{ selectedAgent.health.toFixed(0) }}</span></div>
+          </div>
+          <div class="bodyline" v-if="selectedAgent.bodyTemp !== undefined">
+            <span class="bodychip" :class="comfortClass(selectedAgent.bodyTemp)">体温 {{ selectedAgent.bodyTemp.toFixed(1) }}°C · {{ comfortZh(selectedAgent.bodyTemp) }}</span>
+            <span class="bodychip" v-if="selectedAgent.awake === false">💤 睡着</span>
+            <span class="bodychip" v-for="e in emotionChips" :key="e.key" :class="'emo-' + e.key">{{ e.zh }} {{ e.v.toFixed(2) }}</span>
+          </div>
+          <div class="dna">
+            <span class="dnatitle">DNA</span>
+            <div class="dnarow"><span>curiosity</span><div class="bar"><i :style="{ width: selectedAgent.dna.curiosity * 100 + '%', background: '#8ab4f8' }"></i></div><span>{{ selectedAgent.dna.curiosity.toFixed(2) }}</span></div>
+            <div class="dnarow"><span>endurance</span><div class="bar"><i :style="{ width: selectedAgent.dna.endurance * 100 + '%', background: '#81c995' }"></i></div><span>{{ selectedAgent.dna.endurance.toFixed(2) }}</span></div>
+            <div class="dnarow"><span>intelligence</span><div class="bar"><i :style="{ width: selectedAgent.dna.intelligence * 100 + '%', background: '#c58af9' }"></i></div><span>{{ selectedAgent.dna.intelligence.toFixed(2) }}</span></div>
+          </div>
+          <div class="mats" v-if="materialChips.length">
+            <span class="dnatitle">materials</span>
+            <span v-for="m in materialChips" :key="m.id" class="invchip" :title="m.formula">{{ m.id }} <b>×{{ m.n }}</b> <i class="formula">{{ m.formula }}</i></span>
+          </div>
+          <div class="recipes" v-if="selectedAgent.knownRecipes.length">
+            <span class="dnatitle">known recipes ({{ selectedAgent.knownRecipes.length }})</span>
+            <div class="recipechips">
+              <span v-for="r in selectedAgent.knownRecipes" :key="r" class="invchip recipe">{{ r }}</span>
+            </div>
           </div>
           <div class="inv">
             <span v-for="(v, k) in selectedAgent.inventory" :key="k" class="invchip">
@@ -135,44 +208,44 @@
             <span class="memkind">{{ m.kind }}</span> {{ m.text }}
           </div>
           </div>
-          <button class="clearsel" @click="selected = null">clear selection</button>
+          <button class="clearsel" @click="selected = null">取消选择</button>
         </div>
-        <div v-else class="empty">Click an agent (2D or 3D) to inspect.</div>
+        <div v-else class="empty">点击地图或 3D 地球上的任何一位居民, 看看TA此刻的生活。</div>
 
-        <h2>Message feed</h2>
+        <h2>消息 <span class="dim">feed</span></h2>
         <div class="feed">
           <div v-for="(m, i) in feed" :key="i" class="feedline">
             <span class="who">{{ m.who }}</span>
             <span class="what">{{ m.text }}</span>
           </div>
-          <div v-if="feed.length === 0" class="empty">No messages yet.</div>
+          <div v-if="feed.length === 0" class="empty">这一小时没有人说话。</div>
         </div>
 
-        <h2>Actions <span class="dim">tick {{ tick }}</span></h2>
+        <h2>行动 <span class="dim">tick {{ tick }}</span></h2>
         <div class="logbox">
           <div v-for="a in current?.actions ?? []" :key="a.agentId" class="logline">
-            <span class="who">{{ a.agentId }}</span>
+            <span class="who">{{ nameOf(a.agentId) }}</span>
             <span class="what">{{ actionLabel(a.action) }}</span>
             <span class="res">{{ a.result }}</span>
           </div>
-          <div v-if="current && current.actions.length === 0" class="empty">No actions this tick.</div>
-          <div v-if="!current" class="empty">No log loaded.</div>
+          <div v-if="current && current.actions.length === 0" class="empty">这一小时没有行动。</div>
+          <div v-if="!current" class="empty">尚未载入日志。</div>
         </div>
 
-        <h2>Agents</h2>
+        <h2>居民们 <span class="dim">people</span></h2>
         <div class="agents">
           <div
             v-for="a in current?.agents ?? []"
             :key="a.id"
             class="agent"
-            :class="{ sel: a.id === selected }"
+            :class="{ sel: a.id === selected, asleep: a.awake === false }"
             @click="selected = a.id"
           >
             <span class="dot" :class="energyClass(a.energy)"></span>
-            <span class="aname">{{ a.id }}</span>
+            <span class="aname">{{ a.name ?? a.id }}<i class="gendersym">{{ genderSym(a) }}</i></span>
             <span class="pos">({{ a.x }}, {{ a.y }})</span>
             <span class="bar"><i :style="{ width: a.energy + '%' }"></i></span>
-            <span class="energy">{{ a.energy.toFixed(0) }}</span>
+            <span class="energy">{{ a.awake === false ? "💤" : a.energy.toFixed(0) }}</span>
           </div>
           <div v-if="!current" class="empty">No agents.</div>
         </div>
@@ -185,6 +258,20 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useJsonlStream, type TickLog, type LogAgent, type LogCell } from "./composables/useJsonlStream";
 import GlobeViewer from "./components/GlobeViewer.vue";
+import {
+  TECH_NAMES,
+  MINERAL_BY_ID,
+  MATERIALS,
+  describeMaterial,
+  PHASE_ZH,
+  WEATHER_ZH,
+  bodyComfortOf,
+  BODY_COMFORT_ZH,
+  lifeStageOf,
+  LIFE_STAGE_ZH,
+  EMOTION_ZH,
+  EMOTION_KEYS,
+} from "@elso/shared";
 
 const url = ref("/sample.jsonl");
 const { logs, loading, error, load: loadStream } = useJsonlStream();
@@ -204,10 +291,86 @@ const current = computed<TickLog | null>(() => logs.value[tick.value] ?? null);
 const world = computed(() => logs.value.find((l) => l.world)?.world ?? null);
 const gridW = computed(() => world.value?.width ?? 20);
 const gridH = computed(() => world.value?.height ?? 20);
+// 画布比例跟随世界尺寸, 避免上下黑边。
+const canvasW = computed(() => (gridW.value >= gridH.value ? 720 : Math.round((720 * gridW.value) / gridH.value)));
+const canvasH = computed(() => (gridH.value >= gridW.value ? 720 : Math.round((720 * gridH.value) / gridW.value)));
 
 const selectedAgent = computed<LogAgent | null>(() => {
   if (!selected.value || !current.value) return null;
   return current.value.agents.find((a) => a.id === selected.value) ?? null;
+});
+
+const techName = computed(
+  () => TECH_NAMES[Math.min(TECH_NAMES.length - 1, current.value?.techStage ?? 0)]
+);
+
+// ---- 世界时钟 / 天气 / 代际 ----
+const phaseZh = computed(() => PHASE_ZH[current.value?.time?.phase ?? "day"]);
+const weatherZh = computed(() => WEATHER_ZH[current.value?.weather ?? "clear"]);
+const weatherIcon = computed(() => {
+  const w = current.value?.weather ?? "clear";
+  return w === "clear" ? "☀️" : w === "cloudy" ? "⛅" : w === "rain" ? "🌧️" : w === "storm" ? "⛈️" : "🌨️";
+});
+const clockLabel = computed(() => {
+  const t = current.value?.time;
+  if (!t) return "";
+  return `第${t.day}天 ${String(t.hour).padStart(2, "0")}:00`;
+});
+const genMax = computed(() =>
+  current.value ? Math.max(0, ...current.value.agents.map((a) => a.generation)) + 1 : 1
+);
+
+function nameOf(id: string): string {
+  return current.value?.agents.find((a) => a.id === id)?.name ?? id;
+}
+
+function genderSym(a: LogAgent): string {
+  return a.gender === "female" ? "♀" : a.gender === "male" ? "♂" : "";
+}
+
+function ageLabel(a: LogAgent): string {
+  const stage = lifeStageOf(a.age, a.dna.lifespan);
+  return `${LIFE_STAGE_ZH[stage]} ${a.age}岁/${a.dna.lifespan}`;
+}
+
+const DEATH_CAUSE_ZH: Record<string, string> = {
+  "old age": "衰老",
+  starvation: "饥饿",
+  thirst: "干渴",
+  cold: "严寒",
+  heat: "酷热",
+  illness: "疾病",
+  exhaustion: "力竭",
+};
+function deathCauseZh(cause: string): string {
+  return DEATH_CAUSE_ZH[cause] ?? cause;
+}
+
+function comfortZh(t: number): string {
+  return BODY_COMFORT_ZH[bodyComfortOf(t)];
+}
+function comfortClass(t: number): string {
+  const c = bodyComfortOf(t);
+  return c === "freezing" ? "b-freezing" : c === "cold" ? "b-cold" : c === "fever" ? "b-fever" : c === "hot" ? "b-hot" : "b-ok";
+}
+
+const emotionChips = computed(() => {
+  const e = selectedAgent.value?.emotions;
+  if (!e) return [];
+  return EMOTION_KEYS.map((k) => ({ key: k, zh: EMOTION_ZH[k], v: e[k] })).filter((x) => x.v >= 0.2);
+});
+
+/** Carried materials with their molecular formulas (from the chemistry tables). */
+const materialChips = computed(() => {
+  const a = selectedAgent.value;
+  if (!a) return [];
+  return Object.entries(a.materials ?? {})
+    .filter(([, n]) => n > 0)
+    .map(([id, n]) => ({
+      id,
+      n: Number(n.toFixed(1)),
+      formula: MINERAL_BY_ID[id]?.formula ?? MATERIALS[id]?.formula ?? describeMaterial(id),
+    }));
 });
 
 const BIOME_COLORS: Record<string, string> = {
@@ -249,13 +412,17 @@ const feed = computed(() => {
   const out: { who: string; text: string }[] = [];
   for (const a of current.value.actions) {
     if (a.action.type === "speak") {
-      out.push({ who: a.agentId, text: `“${a.action.payload?.text ?? ""}”` });
+      out.push({ who: nameOf(a.agentId), text: `“${a.action.payload?.text ?? ""}”` });
     } else if (a.action.type === "talk" && a.result?.startsWith("talked")) {
-      out.push({ who: a.agentId, text: `→ ${a.action.payload?.to}: ${a.action.payload?.text ?? ""}` });
+      out.push({ who: nameOf(a.agentId), text: `→ ${a.action.payload?.to}: ${a.action.payload?.text ?? ""}` });
     } else if (a.action.type === "give" && a.result?.startsWith("gave")) {
-      out.push({ who: a.agentId, text: a.result });
+      out.push({ who: nameOf(a.agentId), text: a.result });
+    } else if (a.action.type === "experiment" || a.action.type === "smelt") {
+      out.push({ who: nameOf(a.agentId), text: a.result ?? "experiment" });
+    } else if (a.action.type === "teach") {
+      out.push({ who: nameOf(a.agentId), text: `teaches → ${a.action.payload?.to}: ${a.result ?? ""}` });
     } else if (["work","trade","build","attend","perform","play","rest_at_home"].includes(a.action.type) && a.result) {
-      out.push({ who: a.agentId, text: `${a.action.type}: ${a.result}` });
+      out.push({ who: nameOf(a.agentId), text: `${a.action.type}: ${a.result}` });
     }
   }
   return out.slice(-12).reverse();
@@ -293,6 +460,11 @@ watch(viewMode, async () => {
 });
 
 watch(selected, () => draw());
+
+// 3D 地球的光照跟随世界时钟(昼夜一致)。
+watch(current, (log) => {
+  if (log?.time) day.value = log.time.hour;
+});
 
 function togglePlay() {
   playing.value = !playing.value;
@@ -375,6 +547,27 @@ function draw() {
     ctx.stroke();
   }
 
+  // 昼夜色调: 世界有自己的时刻, 夜晚真的会变暗。
+  const phase = current.value?.time?.phase ?? "day";
+  if (phase === "night") {
+    ctx.fillStyle = "rgba(6, 10, 34, 0.52)";
+    ctx.fillRect(ox, oy, w * size, h * size);
+  } else if (phase === "dusk") {
+    ctx.fillStyle = "rgba(255, 110, 40, 0.14)";
+    ctx.fillRect(ox, oy, w * size, h * size);
+  } else if (phase === "dawn") {
+    ctx.fillStyle = "rgba(255, 190, 120, 0.12)";
+    ctx.fillRect(ox, oy, w * size, h * size);
+  }
+  // 恶劣天气罩层。
+  if (current.value?.weather === "storm") {
+    ctx.fillStyle = "rgba(20, 26, 48, 0.3)";
+    ctx.fillRect(ox, oy, w * size, h * size);
+  } else if (current.value?.weather === "rain") {
+    ctx.fillStyle = "rgba(30, 50, 80, 0.18)";
+    ctx.fillRect(ox, oy, w * size, h * size);
+  }
+
   const log = current.value;
   if (!log) return;
 
@@ -411,7 +604,16 @@ function draw() {
     ctx.font = `600 ${Math.max(7, r * 1.1)}px ui-monospace, monospace`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(a.id, cx, cy + 0.5);
+    // 名字的首字母留在圆点里, 全名写在头顶(空间够时)。
+    ctx.fillText((a.name ?? a.id).slice(0, 2), cx, cy + 0.5);
+    if (size >= 9) {
+      ctx.fillStyle = "rgba(230, 244, 255, 0.85)";
+      ctx.font = `600 ${Math.max(8, size * 0.42)}px ui-sans-serif, system-ui, sans-serif`;
+      ctx.shadowColor = "rgba(0,0,0,0.9)";
+      ctx.shadowBlur = 3;
+      ctx.fillText(`${a.name ?? a.id}${a.gender === "female" ? "♀" : a.gender === "male" ? "♂" : ""}`, cx, cy - r - size * 0.32);
+      ctx.shadowBlur = 0;
+    }
   }
 }
 
@@ -624,7 +826,7 @@ watch(tick, () => drawSpark());
 
 .viewport {
   position: relative;
-  width: min(100%, 64vh, 760px);
+  width: min(100%, 72vh, 920px);
   margin-inline: auto;
   aspect-ratio: 1 / 1;
   display: flex;
@@ -1135,4 +1337,223 @@ h2 {
     flex-wrap: wrap;
   }
 }
+
+/* ---- Civilisation / knowledge panels ---- */
+.civpanel {
+  border: 1px solid #2a3a4a;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #0d1520;
+}
+.civhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.civstage {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f0b44c;
+  letter-spacing: 0.4px;
+}
+.civtech {
+  font-size: 11px;
+  color: #7d93a8;
+}
+.techbar {
+  margin: 6px 0 8px;
+  height: 4px;
+  background: #16222e;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.techbar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #6d7f8f, #f0b44c);
+  transition: width 0.25s;
+}
+.discoveries {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+.discline {
+  font-size: 11.5px;
+  color: #b9c9d9;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.disc-icon {
+  font-size: 12px;
+}
+.disc-recipe {
+  color: #8ab4f8;
+}
+.lifeline {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lifeline-row {
+  font-size: 11.5px;
+}
+.lifeline-row.birth {
+  color: #81c995;
+}
+.lifeline-row.death {
+  color: #e57373;
+}
+
+/* ---- DNA / materials / recipes in the selected panel ---- */
+.dna,
+.mats,
+.recipes {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.dnatitle {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: #7d93a8;
+}
+.dnarow {
+  display: grid;
+  grid-template-columns: 78px 1fr 34px;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #b9c9d9;
+}
+.dnarow .bar {
+  height: 4px;
+}
+.formula {
+  font-style: normal;
+  font-size: 10px;
+  color: #8ab4f8;
+  margin-left: 4px;
+}
+.recipechips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.invchip.recipe {
+  color: #f0b44c;
+  border-color: #4a3a20;
+}
+
+/* ---- 世界时钟 / 昼夜 / 天气 ---- */
+.worldclock {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border: 1px solid rgba(148, 178, 204, 0.14);
+  border-radius: 9px;
+  background: rgba(8, 14, 21, 0.6);
+  font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #a8c4d8;
+  flex-wrap: wrap;
+}
+.wc-phase {
+  padding: 2px 9px;
+  border-radius: 20px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+.wc-phase.ph-day { background: rgba(255, 200, 90, 0.16); color: #ffd76e; }
+.wc-phase.ph-night { background: rgba(90, 110, 220, 0.2); color: #9fb0ff; }
+.wc-phase.ph-dawn { background: rgba(255, 160, 110, 0.18); color: #ffb28a; }
+.wc-phase.ph-dusk { background: rgba(220, 100, 160, 0.16); color: #f0a0c8; }
+.wc-time { color: #e8f6ff; font-weight: 700; }
+.wc-weather { color: #b9c9d9; }
+.wc-sep { color: #44586a; }
+.wc-pop { color: #7e97ac; }
+
+/* ---- 此刻心声 ---- */
+.voices h2 { margin-bottom: 6px; }
+.voicebox {
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid rgba(148, 178, 204, 0.12);
+  border-radius: 9px;
+  background: rgba(6, 11, 17, 0.6);
+  padding: 7px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.voiceline {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.voiceline:hover { background: rgba(148, 178, 204, 0.08); }
+.vname { color: #e8f6ff; font-weight: 700; white-space: nowrap; }
+.vemo {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(148, 178, 204, 0.12);
+  color: #8fa7bb;
+  white-space: nowrap;
+}
+.voiceline.em-喜悦 .vemo { background: rgba(120, 220, 150, 0.16); color: #8fe8b4; }
+.voiceline.em-恐惧 .vemo { background: rgba(160, 130, 250, 0.18); color: #b8a0ff; }
+.voiceline.em-愤怒 .vemo { background: rgba(250, 120, 100, 0.16); color: #ff9f8f; }
+.voiceline.em-哀伤 .vemo { background: rgba(110, 150, 220, 0.16); color: #9fc0f5; }
+.vtext { color: #b9c9d9; font-style: italic; }
+
+/* ---- 身体 / 心声(选中面板) ---- */
+.thought {
+  margin: 2px 0 8px;
+  padding: 7px 9px;
+  border-left: 3px solid #4fbfa0;
+  border-radius: 0 7px 7px 0;
+  background: rgba(79, 191, 160, 0.08);
+  color: #cfe8de;
+  font-size: 12.5px;
+  font-style: italic;
+  line-height: 1.5;
+}
+.gendersym { font-style: normal; margin-left: 3px; color: #f0a0c8; }
+.bodyline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 6px 0 8px;
+}
+.bodychip {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font: 10.5px ui-monospace, monospace;
+  border: 1px solid rgba(148, 178, 204, 0.18);
+  color: #a8c4d8;
+}
+.bodychip.b-ok { color: #8fe8b4; border-color: rgba(120, 220, 150, 0.3); }
+.bodychip.b-cold { color: #9fc0f5; border-color: rgba(110, 150, 220, 0.35); }
+.bodychip.b-freezing { color: #7fd0ff; border-color: rgba(120, 200, 255, 0.45); background: rgba(90, 160, 255, 0.08); }
+.bodychip.b-hot { color: #ffd76e; border-color: rgba(255, 200, 90, 0.35); }
+.bodychip.b-fever { color: #ff9f8f; border-color: rgba(250, 120, 100, 0.45); background: rgba(255, 100, 80, 0.08); }
+.bodychip.emo-joy { color: #8fe8b4; }
+.bodychip.emo-fear { color: #b8a0ff; }
+.bodychip.emo-anger { color: #ff9f8f; }
+.bodychip.emo-sadness { color: #9fc0f5; }
+
+.agent.asleep { opacity: 0.55; }
+.agent .aname { display: inline-flex; align-items: center; min-width: 52px; }
 </style>

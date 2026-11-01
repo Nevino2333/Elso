@@ -62,6 +62,8 @@ async function main() {
   const agentIds = Array.from({ length: agentCount }, (_, i) => `a${i}`);
   const agents = landCells.slice(0, agentCount).map((c, i) => {
     const a = createAgent(`a${i}`, c.x, c.y, agentIds, professions[i % professions.length], seed, 0, []);
+    // 创世的一代是成年人 —— 世界不是从婴儿开始的。
+    a.age = 18 + Math.floor(rng() * 30);
     a.homeBuildingId = homes[i % Math.max(1, homes.length)]?.id;
     a.workplaceId = works[i % Math.max(1, works.length)]?.id;
     if (a.homeBuildingId) {

@@ -26,6 +26,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@elso/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       three:
         specifier: ^0.170.0
         version: 0.170.0

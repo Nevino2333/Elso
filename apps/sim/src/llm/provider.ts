@@ -14,3 +14,8 @@ export interface DecisionContext {
   /** Cell contents at the agent's feet (biome/resource), for provider prompts. */
   cellSummary: string;
 }
+
+export interface DecisionContext {
+  /** Cell contents at the agent's feet (biome/resource), for provider prompts. */
+  cellSummary: string;
+}

@@ -1,38 +1,55 @@
-import type { AgentState, World, Action, ResourceKind } from "@elso/shared";
+import type { AgentState, World, Action } from "@elso/shared";
+import {
+  ambientTemperature,
+  visionRadius,
+  lifeStageOf,
+  LIFE_STAGE_ZH,
+  bodyComfortOf,
+  BODY_COMFORT_ZH,
+  EMOTION_ZH,
+  EMOTION_KEYS,
+} from "@elso/shared";
 import type { LLMProvider } from "./provider.ts";
 
 const MAX_NEIGHBORS = 6;
 const MAX_MEMORY = 5;
 
 /**
- * Local proxy of a full observable world for the prompt:
- * what the agent can literally see from its feet and its recent memory.
- * Keeps token usage bounded regardless of world size.
+ * 第一人称处境: 身体感受 + 感官切片 + 记忆。
+ * 代理只能"看见"视野内的世界, 和自己的身体。
  */
-function buildSituation(
-  agent: AgentState,
-  world: World,
-  agents: AgentState[]
-): string {
+function buildSituation(agent: AgentState, world: World, agents: AgentState[], tick: number): string {
   const cell = world.cells[agent.y]?.[agent.x];
-  const here = cell
-    ? `${cell.biome} (elevation ${cell.elevation.toFixed(2)}, temp ${cell.temperature.toFixed(
-        2
-      )}, moisture ${cell.moisture.toFixed(2)}), resource ${cell.resourceKind ?? "none"} x${(
-        cell.resource ?? 0
-      ).toFixed(2)}`
-    : "unknown";
+  const vr = visionRadius(
+    (tick % 24 >= 5 && tick % 24 < 7) || (tick % 24 >= 17 && tick % 24 < 19)
+      ? "dusk"
+      : tick % 24 >= 7 && tick % 24 < 17
+        ? "day"
+        : "night",
+    "clear"
+  );
 
-  const visible: string[] = [];
-  for (let dy = -2; dy <= 2; dy++) {
-    for (let dx = -2; dx <= 2; dx++) {
+  const body = [
+    `饥饿 ${agent.hunger.toFixed(0)}/100, 口渴 ${agent.thirst.toFixed(0)}/100, 困倦 ${agent.sleepiness.toFixed(0)}/100`,
+    `体力 ${agent.energy.toFixed(0)}/100, 健康 ${agent.health.toFixed(0)}/100, 体温 ${agent.bodyTemp.toFixed(1)}°C(${BODY_COMFORT_ZH[bodyComfortOf(agent.bodyTemp)]})`,
+    `情绪: ${EMOTION_KEYS.map((k) => `${EMOTION_ZH[k]} ${agent.emotions[k].toFixed(2)}`).join(", ")}`,
+    agent.awake ? "" : "(你正睡着)",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const sees: string[] = [];
+  for (let dy = -vr; dy <= vr && sees.length < 10; dy++) {
+    for (let dx = -vr; dx <= vr && sees.length < 10; dx++) {
       if (dx === 0 && dy === 0) continue;
       const c = world.cells[agent.y + dy]?.[agent.x + dx];
-      if (c && c.terrain === "land" && c.resourceKind && c.resource > 0.2) {
-        visible.push(`${c.biome} at offset (${dx},${dy}) ${c.resourceKind} x${c.resource.toFixed(2)}`);
-      }
+      if (!c) continue;
+      if (c.terrain === "water") sees.push(`(${dx},${dy})是水`);
+      else if (c.resourceKind && c.resource > 0.15) sees.push(`(${dx},${dy})${c.biome}有${c.resourceKind}`);
+      else if ((c.minerals ?? []).length > 0) sees.push(`(${dx},${dy})岩石里露出${c.minerals.join("、")}`);
     }
   }
+
   const nearby = agents
     .filter(
       (a) =>
@@ -44,22 +61,29 @@ function buildSituation(
     .slice(0, MAX_NEIGHBORS)
     .map(
       (a) =>
-        `${a.id} at (${a.x},${a.y}) hunger ${a.hunger.toFixed(0)} energy ${a.energy.toFixed(
-          0
-        )}, carrying ${a.inventory.food.toFixed(1)} food`
+        `${a.name}(${a.gender === "female" ? "女" : "男"}, ${LIFE_STAGE_ZH[lifeStageOf(a.age, a.dna.lifespan)]})在(${a.x - agent.x},${a.y - agent.y}), 亲密度${((agent.relationships[a.id] ?? 0) + 1).toFixed(1)}/2`
     );
 
-  const inv = (Object.keys(agent.inventory) as ResourceKind[])
-    .map((k) => `${k}:${agent.inventory[k].toFixed(1)}`)
-    .join(", ");
+  const inv = Object.entries(agent.inventory)
+    .filter(([, v]) => v >= 0.5)
+    .map(([k, v]) => `${k}:${v.toFixed(1)}`)
+    .join(", ") || "空";
+  const mats = Object.entries(agent.materials)
+    .filter(([, v]) => v > 0)
+    .map(([k, v]) => `${k}×${v}`)
+    .join(", ") || "无";
+
+  const air = cell ? ambientTemperature(cell.temperature, "day", "clear").toFixed(0) : "20";
 
   return [
-    `position: (${agent.x},${agent.y}), biome: ${here}`,
-    `energy: ${agent.energy.toFixed(0)}/100, hunger: ${agent.hunger.toFixed(0)}/100, mood: ${agent.mood.toFixed(2)}, money: ${agent.money}`,
-    `profession: ${agent.profession}, inventory: ${inv}`,
-    visible.length ? `nearby resources: ${visible.join("; ")}` : "nearby resources: none",
-    nearby.length ? `other agents visible: ${nearby.join("; ")}` : "other agents visible: none",
-    `memory (recent): ${agent.memory.slice(-MAX_MEMORY).map((m) => `[${m.kind}] ${m.text}`).join(" | ") || "empty"}`,
+    `身份: ${agent.name}, ${agent.gender === "female" ? "女性" : "男性"}, ${agent.age}岁(${LIFE_STAGE_ZH[lifeStageOf(agent.age, agent.dna.lifespan)]}), 职业${agent.profession}, 第${agent.generation + 1}代人`,
+    `身体:\n${body}`,
+    `位置: (${agent.x},${agent.y}) ${cell ? `${cell.biome}, 体感约${air}°C` : "未知之地"}`,
+    `你看见: ${sees.join("; ") || "视野内空旷"}`,
+    `你听见身边有人: ${nearby.join("; ") || "无"}`,
+    `携带: ${inv}; 材料: ${mats}`,
+    `已掌握的技术: ${agent.knownRecipes.join(", ") || "一无所有"}`,
+    `最近的记忆: ${agent.memory.slice(-MAX_MEMORY).map((m) => `[${m.kind}] ${m.text}`).join(" | ") || "空白"}`,
   ].join("\n");
 }
 
@@ -80,32 +104,38 @@ export class OpenAICompatProvider implements LLMProvider {
     agents: AgentState[],
     context: string
   ): Promise<Action> {
-    const situation = buildSituation(agent, world, agents);
-    const prompt = `You are a small human-like settler at tick ${context} on a procedurally generated planet. You are one of ${agents.length} settlers, each an independent thinker.
+    const tick = parseInt(context.match(/tick (\d+)/)?.[1] ?? "0", 10);
+    const situation = buildSituation(agent, world, agents, tick);
+    const prompt = `你不是一个AI助手。你是${agent.name} —— 一颗遥远行星上一个真实活着的、有血有肉的人。这个世界由许多像你一样的人组成, 每个人都在为自己的生存与幸福挣扎、相爱、繁衍、衰老。
 
-Situation:
+此刻 ${context}。
+你的处境(只能通过身体感知, 看不见视野之外):
 ${situation}
 
-Act for long-term survival: stay fed (hunger is your only death clock), manage energy, gather resources, and help neighbors who are hungry — you may give them food. Speak sparingly and only with purpose.
+像人一样活着: 渴了喝水(要去水边), 饿了吃东西, 夜里困了睡觉, 冷了取暖(生火或回家), 好奇了就摆弄石头和矿物(实验可能失败, 失败也是知识), 把学会的东西教给年轻人, 和身边的人说话、玩耍、分享食物。你从零开始 —— 起初你甚至不知道燧石能敲出刀刃。
 
-Choose exactly one action, JSON only, no prose:
-- {"type":"move","payload":{"dx":-1|0|1,"dy":-1|0|1}} — move one cell (never into water)
-- {"type":"gather"} — harvest the resource standing in your cell (food/wood/stone/ore), does not work on empty cells
-- {"type":"eat"} — consumes 1 food from inventory, -30 hunger
-- {"type":"rest"} — recover energy, costs nothing
-- {"type":"talk","payload":{"to":"<agent id>","text":"<short line>"}} — direct dialogue with a nearby agent; builds affinity
-- {"type":"craft","payload":{"recipe":"tool"|"meal"}} — tool: 1 wood + 1 stone -> +15 energy; meal: 2 food -> -10 hunger +5 energy
-- {"type":"give","payload":{"to":"<agent id>","kind":"food","amount":1}} — only if that agent is within 2 cells and you have surplus
-- {"type":"work"} — perform your profession for money
-- {"type":"trade","payload":{"to":"<agent id>","kind":"food","price":2}}
-- {"type":"build","payload":{"kind":"home"|"workshop"|"market"|"stage"|"plaza"}}
-- {"type":"attend","payload":{"eventId":"<id>"}} — join a nearby social event
-- {"type":"perform"} — play music on a nearby stage (artists)
-- {"type":"play","payload":{"to":"<agent id>"}} — play with a neighbor
-- {"type":"rest_at_home"} — recover at your home
-- {"type":"speak","payload":{"text":"<short message>"}}
+用JSON回答, 不要多余文字:
+{"thought":"第一人称心声, 中文, 40字以内, 是你此刻真实的感受","action":{"type":"动作类型","payload":{...}}}
 
-Eat only if hunger is high; gather food whenever standing on food; move toward food if you are hungry and have none. Talk to nearby agents to build relationships; share food with hungry neighbors. Never be idle when you can act.`;
+可选动作:
+- {"type":"move","payload":{"dx":-1|0|1,"dy":-1|0|1}} 走一格(不能入水)
+- {"type":"gather"} 采集脚下的资源/矿物
+- {"type":"eat"} 吃1份食物
+- {"type":"drink"} 喝水(必须自身或相邻格有水)
+- {"type":"sleep"} 睡觉(恢复体力, 天亮或危险时自动醒)
+- {"type":"rest"} 休息
+- {"type":"experiment","payload":{"inputs":["flint","peat"],"condition":"none"}} 用携带的材料做实验
+- {"type":"smelt","payload":{"inputs":["hematite","charcoal","fire"]}} 冶炼
+- {"type":"teach","payload":{"to":"<id>"}} 教身边的人下一步技术
+- {"type":"talk","payload":{"to":"<id>","text":"..."}} 交谈
+- {"type":"play","payload":{"to":"<id>"}} 一起玩耍
+- {"type":"give","payload":{"to":"<id>","kind":"food","amount":1}} 分食物
+- {"type":"attend","payload":{"eventId":"<id>"}} 参加附近的活动
+- {"type":"perform","payload":{"text":"..."}} 表演
+- {"type":"work"} 干活挣钱
+- {"type":"craft","payload":{"recipe":"tool"|"meal"}} 制作
+- {"type":"build","payload":{"kind":"home"|"workshop"|"market"|"stage"|"plaza"}} 建造
+- {"type":"speak","payload":{"text":"..."}} 自言自语`;
 
     const res = await fetch(`${this.baseUrl}/chat/completions`, {
       method: "POST",
@@ -117,7 +147,7 @@ Eat only if hunger is high; gather food whenever standing on food; move toward f
         model: this.model,
         messages: [{ role: "user", content: prompt }],
         temperature: 0.7,
-        max_tokens: 150,
+        max_tokens: 200,
         response_format: { type: "json_object" },
       }),
     });
@@ -129,10 +159,18 @@ Eat only if hunger is high; gather food whenever standing on food; move toward f
     const text = data?.choices?.[0]?.message?.content ?? "{}";
     try {
       const parsed = JSON.parse(text) as {
+        thought?: string;
+        action?: { type?: Action["type"]; payload?: Record<string, unknown> };
         type?: Action["type"];
         payload?: Record<string, unknown>;
       };
-      return { type: parsed.type ?? "rest", payload: parsed.payload };
+      // 心声归档(供世界回放); 截断防止失控。
+      if (parsed.thought && typeof parsed.thought === "string") {
+        agent.thought = parsed.thought.slice(0, 80);
+      }
+      // 兼容两种形状: {"thought","action":{...}} 或直接的 {"type","payload"}。
+      const act = parsed.action ?? parsed;
+      return { type: act.type ?? "rest", payload: act.payload };
     } catch {
       return { type: "rest" };
     }
