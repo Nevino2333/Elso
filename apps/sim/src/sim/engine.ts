@@ -174,7 +174,27 @@ export async function runSimulation(
         }
       }
 
-      // 情绪随时间缓缓平复。
+      // 疾病: 淋雨/严寒/脱水可能致病; 病中身体持续衰弱。
+      if (!agent.illness && cell) {
+        const air = ambientTemperature(cell.temperature, time.phase, weather);
+        const risk =
+          (weather === "rain" || weather === "storm" || weather === "snow") && air < 8
+            ? 0.03
+            : agent.bodyTemp < 35
+              ? 0.05
+              : agent.thirst >= 95
+                ? 0.04
+                : 0;
+        if (risk > 0 && ((tick * 17 + agent.id.charCodeAt(0) * 31) % 1000) / 1000 < risk) {
+          agent.illness = air < 0 ? "cold" : weather === "rain" || weather === "storm" ? "flu" : "weakness";
+          feel(agent, "fear", 0.15);
+          addMemory(agent, tick, "event", `fell ill: ${agent.illness}`, 0.8);
+        }
+      }
+      if (agent.illness) {
+        agent.health = Math.max(0, agent.health - 0.6);
+        feel(agent, "fear", 0.02);
+      }
       for (const k of ["joy", "fear", "anger", "sadness"] as const) {
         agent.emotions[k] = clampEmotion(agent.emotions[k] * 0.97);
       }
@@ -281,6 +301,11 @@ export async function runSimulation(
           if (p1.knownRecipes.length) inherited.push(p1.knownRecipes[rng() * p1.knownRecipes.length | 0]);
           if (p2.knownRecipes.length) inherited.push(p2.knownRecipes[rng() * p2.knownRecipes.length | 0]);
           child.knownRecipes.push(...new Set(inherited));
+          // Language evolution: vocabulary inherited + drift.
+          const words = new Set<string>([...(p1.vocabulary ?? []), ...(p2.vocabulary ?? [])]);
+          if (rng() < 0.4) words.add(`w${child.generation}${nextAgentNum}`);
+          child.vocabulary = [...words].slice(0, 12);
+          child.dialect = rng() < 0.5 ? (p1.dialect ?? "soft") : (p2.dialect ?? "hard");
           // Birth costs the parents.
           p1.energy = Math.max(1, p1.energy - 12);
           p2.energy = Math.max(1, p2.energy - 12);

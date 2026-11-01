@@ -193,6 +193,9 @@
           <div class="bodyline" v-if="selectedAgent.bodyTemp !== undefined">
             <span class="bodychip" :class="comfortClass(selectedAgent.bodyTemp)">体温 {{ selectedAgent.bodyTemp.toFixed(1) }}°C · {{ comfortZh(selectedAgent.bodyTemp) }}</span>
             <span class="bodychip" v-if="selectedAgent.awake === false">💤 睡着</span>
+            <span class="bodychip" v-if="selectedAgent.illness">🤒 {{ selectedAgent.illness }}</span>
+            <span class="bodychip">💊 药材 {{ selectedAgent.medicine ?? 0 }}</span>
+            <span class="bodychip" v-if="selectedAgent.vocabulary?.length">🗣 {{ selectedAgent.dialect ?? '—' }} · {{ selectedAgent.vocabulary.length }} 词</span>
             <span class="bodychip" v-for="e in emotionChips" :key="e.key" :class="'emo-' + e.key">{{ e.zh }} {{ e.v.toFixed(2) }}</span>
           </div>
           <div class="dna">

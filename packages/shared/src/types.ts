@@ -167,6 +167,12 @@ export interface AgentState {
   bodyTemp: number; // 体温 °C(正常约37)
   emotions: Emotions;
   thought?: string; // 本 tick 的心声(第一人称)
+  // 疾病与医疗
+  illness?: string | null; // 当前疾病 id, null=健康
+  medicine?: number; // 药材存量
+  // 语言演化
+  dialect?: string; // 方言/口音 id
+  vocabulary?: string[]; // 已掌握的词汇
   inventory: Inventory;
   materials: Record<string, number>; // elements/compounds discovered or carried
   knowledge: string[]; // discovered formulas/reactions
@@ -216,7 +222,8 @@ export type ActionType =
   | "smelt"
   | "teach"
   | "drink"
-  | "sleep";
+  | "sleep"
+  | "heal";
 
 export interface Action {
   type: ActionType;

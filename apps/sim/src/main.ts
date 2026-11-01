@@ -63,6 +63,8 @@ async function main() {
   const usedNames = new Set<string>();
   const agents = landCells.slice(0, agentCount).map((c, i) => {
     const a = createAgent(`a${i}`, c.x, c.y, agentIds, professions[i % professions.length], seed, 0, [], 0, undefined, undefined, undefined, usedNames);
+    a.vocabulary = [`${a.dialect ?? "soft"}-root`];
+    a.medicine = 0;
     // 创世的一代是成年人 —— 世界不是从婴儿开始的。
     a.age = 18 + Math.floor(rng() * 30);
     a.homeBuildingId = homes[i % Math.max(1, homes.length)]?.id;

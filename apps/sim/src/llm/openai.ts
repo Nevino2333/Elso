@@ -78,6 +78,8 @@ function buildSituation(agent: AgentState, world: World, agents: AgentState[], t
   return [
     `身份: ${agent.name}, ${agent.gender === "female" ? "女性" : "男性"}, ${agent.age}岁(${LIFE_STAGE_ZH[lifeStageOf(agent.age, agent.dna.lifespan)]}), 职业${agent.profession}, 第${agent.generation + 1}代人`,
     `身体:\n${body}`,
+    `语言: 方言 ${agent.dialect ?? "—"}, 掌握 ${agent.vocabulary?.length ?? 0} 个词`,
+    agent.illness ? `你病了: ${agent.illness}(药材 ${agent.medicine ?? 0})` : `健康, 药材 ${agent.medicine ?? 0}`,
     `位置: (${agent.x},${agent.y}) ${cell ? `${cell.biome}, 体感约${air}°C` : "未知之地"}`,
     `你看见: ${sees.join("; ") || "视野内空旷"}`,
     `你听见身边有人: ${nearby.join("; ") || "无"}`,
@@ -135,6 +137,7 @@ ${situation}
 - {"type":"work"} 干活挣钱
 - {"type":"craft","payload":{"recipe":"tool"|"meal"}} 制作
 - {"type":"build","payload":{"kind":"home"|"workshop"|"market"|"stage"|"plaza"}} 建造
+- {"type":"heal"} 用药材治病(需生病且有药材)
 - {"type":"speak","payload":{"text":"..."}} 自言自语`;
 
     const res = await fetch(`${this.baseUrl}/chat/completions`, {

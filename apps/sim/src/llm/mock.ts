@@ -104,7 +104,8 @@ export class MockProvider implements LLMProvider {
       return { type: "rest" };
     }
 
-    // 1. Starvation: eat what we carry, or hunt.
+    // 0d. 疾病: 生病且有药材就治。
+    if (agent.illness && (agent.medicine ?? 0) >= 1) return { type: "heal" };
     if (agent.hunger >= 70) {
       if (agent.inventory.food >= 1) return { type: "eat" };
       if (here && here.resourceKind === "food" && here.resource > 0.1) {

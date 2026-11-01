@@ -115,6 +115,10 @@ export interface LogAgent {
   bodyTemp?: number;
   emotions?: LogEmotions;
   thought?: string;
+  illness?: string | null;
+  medicine?: number;
+  dialect?: string;
+  vocabulary?: string[];
   inventory: Inventory;
   memory: MemoryEntry[];
   relationships: Record<string, number>;

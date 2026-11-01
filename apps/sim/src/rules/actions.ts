@@ -58,8 +58,10 @@ export function executeAction(
         agent.materials[min] = (agent.materials[min] ?? 0) + 0.5;
         mined += 0.5;
       }
-      if (mined > 0) parts.push(`+${mined} mineral ore`);
-      if (parts.length === 0) return { ok: false, message: "no resource" };
+      // 草药采集: 森林/草原/雨林中可能采到药材。
+      if (cell.biome === "temperate-forest" || cell.biome === "rainforest" || cell.biome === "taiga" || cell.biome === "grassland") {
+        agent.medicine = Math.min(20, (agent.medicine ?? 0) + 0.2);
+      }
       return { ok: true, message: `gathered ${parts.join(", ")}` };
     }
     case "eat": {
@@ -299,6 +301,15 @@ export function executeAction(
         discovered: next.id,
         discoveredVia: "teach",
       };
+    }
+    case "heal": {
+      const sick = agent.illness;
+      if (!sick) return { ok: false, message: "not sick" };
+      if ((agent.medicine ?? 0) < 1) return { ok: false, message: "no medicine" };
+      agent.medicine = (agent.medicine ?? 0) - 1;
+      agent.illness = null;
+      agent.health = Math.min(100, agent.health + 25);
+      return { ok: true, message: `healed from ${sick}` };
     }
     case "speak": {
       return { ok: true, message: `said: ${action.payload?.text ?? ""}` };
