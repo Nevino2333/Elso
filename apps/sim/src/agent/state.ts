@@ -17,7 +17,8 @@ export function createAgent(
   generation = 0,
   dna?: AgentState["dna"],
   gender?: Gender,
-  name?: string
+  name?: string,
+  usedNames?: Set<string>
 ): AgentState {
   const rng = createRng(seed + id.charCodeAt(0) * 31 + id.length);
   const inventory: Inventory = { food: 2, wood: 0, stone: 0, ore: 0 };
@@ -29,7 +30,16 @@ export function createAgent(
   const myGender: Gender = gender ?? (rng() < 0.5 ? "female" : "male");
   let nameHash = 0;
   for (let i = 0; i < id.length; i++) nameHash = (nameHash * 31 + id.charCodeAt(i)) | 0;
-  const myName = name ?? agentName(seed, Math.abs(nameHash) % 10000, myGender);
+  let myName = name ?? agentName(seed, Math.abs(nameHash) % 10000, myGender);
+  // 重名去重: 同名追加罗马数字后缀, 保证每个居民都有可区分的名字。
+  if (usedNames) {
+    if (usedNames.has(myName)) {
+      let n = 2;
+      while (usedNames.has(`${myName} ${toRoman(n)}`)) n++;
+      myName = `${myName} ${toRoman(n)}`;
+    }
+    usedNames.add(myName);
+  }
   return {
     id,
     name: myName,
@@ -107,4 +117,17 @@ export function addMemory(
 export function adjustRelationship(agent: AgentState, otherId: string, delta: number): void {
   if (agent.relationships[otherId] === undefined) agent.relationships[otherId] = 0;
   agent.relationships[otherId] = Math.max(-1, Math.min(1, agent.relationships[otherId] + delta));
+}
+
+export function toRoman(n: number): string {
+  const vals = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1];
+  const syms = ["M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"];
+  let out = "";
+  for (let i = 0; i < vals.length; i++) {
+    while (n >= vals[i]) {
+      out += syms[i];
+      n -= vals[i];
+    }
+  }
+  return out;
 }

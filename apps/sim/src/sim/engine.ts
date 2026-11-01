@@ -53,6 +53,7 @@ export async function runSimulation(
   let birthsTotal = 0;
   let deathsTotal = 0;
   let nextAgentNum = agents.length;
+  const usedNames = new Set(agents.map((a) => a.name));
 
   // Snapshot initial resource stocks so regeneration never exceeds them.
   const initialStock = new Map<string, number>();
@@ -271,7 +272,9 @@ export async function runSimulation(
             [p1.id, p2.id],
             Math.max(p1.generation, p2.generation) + 1,
             dna,
-            rng() < 0.5 ? "female" : "male"
+            rng() < 0.5 ? "female" : "male",
+            undefined,
+            usedNames
           );
           // Cultural inheritance: each parent passes ONE already-known recipe.
           const inherited: string[] = [];

@@ -144,16 +144,6 @@ export const RECIPES: RecipeSpec[] = [
     note: "Cooking gelatinises starch and denatures protein: more energy per meal.",
   },
   {
-    id: "quicklime",
-    name: "Quicklime",
-    tech: 2,
-    requires: ["charcoal"],
-    inputs: { gypsum: 2, fire: 1 },
-    condition: "fire",
-    outputs: { quicklime: 1 },
-    note: "CaSO4·2H2O calcines to CaO + SOx + steam.",
-  },
-  {
     id: "smelt_copper",
     name: "Copper smelting",
     tech: 3,
@@ -184,6 +174,16 @@ export const RECIPES: RecipeSpec[] = [
     note: "Fe2O3 + 3CO -> 2Fe + 3CO2 in a bloomery furnace.",
   },
   {
+    id: "smelt_iron_magnetite",
+    name: "Iron smelting (magnetite)",
+    tech: 3,
+    requires: ["smelt_copper"],
+    inputs: { magnetite: 2, charcoal: 2, fire: 1 },
+    condition: "fire",
+    outputs: { iron: 2 },
+    note: "Fe3O4 + 4CO -> 3Fe + 4CO2: magnetite reduces to bloomery iron.",
+  },
+  {
     id: "bronze",
     name: "Bronze",
     tech: 4,
@@ -212,6 +212,16 @@ export const RECIPES: RecipeSpec[] = [
     condition: "fire",
     outputs: { glass: 1 },
     note: "Quartz melts to an amorphous SiO2 melt above 1700C.",
+  },
+  {
+    id: "quicklime",
+    name: "Quicklime",
+    tech: 2,
+    requires: ["charcoal"],
+    inputs: { gypsum: 2, fire: 1 },
+    condition: "fire",
+    outputs: { quicklime: 1 },
+    note: "CaSO4·2H2O calcines to CaO + SOx + steam.",
   },
 ];
 

@@ -125,7 +125,7 @@ function classify(
   if (elevation < 0.51) return { terrain: "water", biome: "shallows" };
   if (elevation < 0.54) return { terrain: "land", biome: "beach" };
 
-  if (elevation >= 0.82) return { terrain: "land", biome: "mountain" };
+  if (elevation >= 0.72) return { terrain: "land", biome: "mountain" };
   if (temperature < 0.16) return { terrain: "land", biome: "snow" };
   if (temperature < 0.3) return { terrain: "land", biome: "tundra" };
   if (temperature >= 0.82) {
@@ -174,7 +174,7 @@ function mineralsFor(
   };
   switch (biome) {
     case "mountain":
-      if (elevation > 0.86) {
+      if (elevation > 0.72) {
         if (h < 0.25) push("magnetite");
         else if (h < 0.4) push("cassiterite");
       }

@@ -367,7 +367,7 @@ export class MockProvider implements LLMProvider {
       world,
       agent,
       (c) => (c.minerals ?? []).some((m) => ids.includes(m)),
-      Math.max(this.vr, 12)
+      Math.max(this.vr, 20)
     );
   }
 

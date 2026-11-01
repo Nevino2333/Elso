@@ -60,8 +60,9 @@ async function main() {
   const homes = world.buildings.filter((b) => b.kind === "home");
   const works = world.buildings.filter((b) => b.kind === "workshop" || b.kind === "market");
   const agentIds = Array.from({ length: agentCount }, (_, i) => `a${i}`);
+  const usedNames = new Set<string>();
   const agents = landCells.slice(0, agentCount).map((c, i) => {
-    const a = createAgent(`a${i}`, c.x, c.y, agentIds, professions[i % professions.length], seed, 0, []);
+    const a = createAgent(`a${i}`, c.x, c.y, agentIds, professions[i % professions.length], seed, 0, [], 0, undefined, undefined, undefined, usedNames);
     // 创世的一代是成年人 —— 世界不是从婴儿开始的。
     a.age = 18 + Math.floor(rng() * 30);
     a.homeBuildingId = homes[i % Math.max(1, homes.length)]?.id;
@@ -72,7 +73,7 @@ async function main() {
     }
     return a;
   });
-  while (agents.length < agentCount) agents.push(createAgent(`a${agents.length}`, 0, 0, agentIds));
+  while (agents.length < agentCount) agents.push(createAgent(`a${agents.length}`, 0, 0, agentIds, "unemployed", seed, 0, [], 0, undefined, undefined, undefined, usedNames));
 
   const provider = mock
     ? new MockProvider(seed)

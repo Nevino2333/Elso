@@ -169,6 +169,20 @@
             <span class="pos">({{ selectedAgent.x }}, {{ selectedAgent.y }}) · gen {{ selectedAgent.generation }} · {{ ageLabel(selectedAgent) }} · {{ selectedAgent.profession }}</span>
           </div>
           <div class="thought" v-if="selectedAgent.thought">“{{ selectedAgent.thought }}”</div>
+          <div class="family" v-if="familyParents.length || familyChildren.length || familyPartners.length">
+            <div class="familyrow" v-if="familyParents.length">
+              <span class="famlabel">父母</span>
+              <span v-for="p in familyParents" :key="p.id" class="famchip" :class="{ dead: !p.alive }" @click="p.alive && (selected = p.id)">{{ p.name }}{{ p.alive ? "" : " †" }}</span>
+            </div>
+            <div class="familyrow" v-if="familyPartners.length">
+              <span class="famlabel">伴侣</span>
+              <span v-for="p in familyPartners" :key="p.id" class="famchip" :class="{ dead: !p.alive }" @click="p.alive && (selected = p.id)">{{ p.name }}{{ p.alive ? "" : " †" }}</span>
+            </div>
+            <div class="familyrow" v-if="familyChildren.length">
+              <span class="famlabel">子女</span>
+              <span v-for="c in familyChildren" :key="c.id" class="famchip" :class="{ dead: !c.alive }" @click="c.alive && (selected = c.id)">{{ c.name }}{{ c.alive ? "" : " †" }}</span>
+            </div>
+          </div>
           <div class="sel-bars">
             <div class="barrow"><span>energy</span><div class="bar"><i :style="{ width: selectedAgent.energy + '%', background: '#4be3a4' }"></i></div><span>{{ selectedAgent.energy.toFixed(0) }}</span></div>
             <div class="barrow"><span>hunger</span><div class="bar"><i :style="{ width: selectedAgent.hunger + '%', background: '#f0b44c' }"></i></div><span>{{ selectedAgent.hunger.toFixed(0) }}</span></div>
@@ -298,6 +312,51 @@ const canvasH = computed(() => (gridH.value >= gridW.value ? 720 : Math.round((7
 const selectedAgent = computed<LogAgent | null>(() => {
   if (!selected.value || !current.value) return null;
   return current.value.agents.find((a) => a.id === selected.value) ?? null;
+});
+
+// ---- 家族: 跨 tick 的姓名/亲属查询 --------------------------------------
+const nameById = computed(() => {
+  const m = new Map<string, string>();
+  for (const l of logs.value) {
+    for (const a of l.agents ?? []) if (a.name) m.set(a.id, a.name);
+    for (const b of l.births ?? []) if (b.name) m.set(b.id, b.name);
+    for (const d of l.deaths ?? []) if (d.name) m.set(d.id, d.name);
+  }
+  return m;
+});
+const allAgentsEver = computed(() => {
+  const m = new Map<string, LogAgent>();
+  for (const l of logs.value) for (const a of l.agents ?? []) m.set(a.id, a);
+  return m;
+});
+const familyParents = computed(() => {
+  const a = selectedAgent.value;
+  if (!a?.parentIds?.length) return [];
+  return a.parentIds.map((id) => ({ id, name: nameById.value.get(id) ?? id, alive: current.value?.agents.some((x) => x.id === id) ?? false }));
+});
+const familyChildren = computed(() => {
+  const a = selectedAgent.value;
+  if (!a) return [];
+  const out: { id: string; name: string; alive: boolean }[] = [];
+  for (const ag of allAgentsEver.value.values()) {
+    if (ag.parentIds?.includes(a.id)) {
+      out.push({ id: ag.id, name: ag.name ?? ag.id, alive: current.value?.agents.some((x) => x.id === ag.id) ?? false });
+    }
+  }
+  // dedup by id
+  const seen = new Set<string>();
+  return out.filter((c) => (seen.has(c.id) ? false : (seen.add(c.id), true)));
+});
+const familyPartners = computed(() => {
+  const a = selectedAgent.value;
+  if (!a) return [];
+  const partners = new Set<string>();
+  for (const ag of allAgentsEver.value.values()) {
+    if (ag.parentIds?.includes(a.id)) {
+      for (const pid of ag.parentIds) if (pid !== a.id) partners.add(pid);
+    }
+  }
+  return [...partners].map((id) => ({ id, name: nameById.value.get(id) ?? id, alive: current.value?.agents.some((x) => x.id === id) ?? false }));
 });
 
 const techName = computed(
@@ -1221,8 +1280,13 @@ h2 {
   border-bottom: 1px solid rgba(148, 178, 204, 0.06);
 }
 
+.family { margin: 4px 0 8px; display: flex; flex-direction: column; gap: 4px; }
+.familyrow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11px; }
+.famlabel { color: #7d93a8; text-transform: uppercase; letter-spacing: 0.8px; font-size: 10px; min-width: 32px; }
+.famchip { padding: 2px 8px; border-radius: 10px; background: rgba(148, 178, 204, 0.1); border: 1px solid rgba(148, 178, 204, 0.18); color: #a8c4d8; cursor: pointer; }
+.famchip:hover { background: rgba(90, 210, 175, 0.12); }
+.famchip.dead { color: #667f92; cursor: default; text-decoration: line-through; }
 .clearsel {
-  padding: 4px 10px;
   border-radius: 6px;
   border: 1px solid rgba(148, 178, 204, 0.2);
   background: transparent;
